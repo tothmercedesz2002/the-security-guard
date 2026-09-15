@@ -21,7 +21,7 @@
     <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
     <!-- Displays a response slider -->
     <script src="https://unpkg.com/@jspsych/plugin-html-slider-response@1.1.3"></script>
-    <!-- Loads the image files before the experiment starts to prevent delays -->
+    <!-- Loads the image-preloading plugin used to prevent delays during the task -->
     <script src="https://unpkg.com/@jspsych/plugin-preload@1.1.3"></script>
 
     <!-- Custom style for the experiment -->
@@ -232,545 +232,547 @@
 
 </head>
 
-<!-- The body starts empty because jsPsych inserts the experiment content dynamically -->
+<!-- The body starts without visible content because jsPsych inserts the experiment dynamically -->
 
-<body></body>
+<body>
 
-<!-- Starts the JavaScript code that controls the experiment -->
+    <!-- Starts the JavaScript code that controls the experiment -->
 
-<script>
+    <script>
 
-    // SETUP
+        // SETUP
 
-    // Initializes jsPsych, which will control the experiment and store its data
-    const jsPsych = initJsPsych({
-        // Runs this function automatically after the entire experiment has finished
-        on_finish: function () {
-            // Gets all recorded jsPsych data and starts creating the cleaned dataset for analysis
-            const analysisData = jsPsych.data.get()
-                // Keeps only rows belonging to the relevant experimental tasks (for trial level analysis)
-                .filterCustom(function (row) {
-                    return [
-                        "practice",
-                        "main",
-                        "glitch",
-                        "test"
-                    ].includes(row.task);
-                })
-                // Keeps only the variables needed for analysis and sets their order in the CSV
-                .filterColumns([
-                    "participant_id",
-                    "session_start",
-                    "time_elapsed",
-                    "task",
-                    "question",
-                    "item_id",
-                    "learning_condition",
-                    "memory_status",
-                    "response",
-                    "rt",
-                    "correct_response",
-                    "correct",
-                    "missed_response",
-                    "commission_error", // when participant responds during imagination trials
-                    "false_alarm",      // when participant responds during lure trials
-                    "miss",
-                    "glitch_shown",
-                    "glitch_assigned"
-                ]);
+        // Initializes jsPsych, which will control the experiment and store its data
+        const jsPsych = initJsPsych({
+            // Runs this function automatically after the entire experiment has finished
+            on_finish: function () {
+                // Gets all recorded jsPsych data and starts creating the cleaned dataset for analysis
+                const analysisData = jsPsych.data.get()
+                    // Keeps only rows belonging to the relevant experimental tasks (for trial level analysis)
+                    .filterCustom(function (row) {
+                        return [
+                            "practice",
+                            "main",
+                            "glitch",
+                            "test"
+                        ].includes(row.task);
+                    })
+                    // Keeps only the variables needed for analysis and sets their order in the CSV
+                    .filterColumns([
+                        "participant_id",
+                        "session_start",
+                        "time_elapsed",
+                        "task",
+                        "question",
+                        "item_id",
+                        "learning_condition",
+                        "memory_status",
+                        "response",
+                        "rt",
+                        "correct_response",
+                        "correct",
+                        "missed_response",
+                        "commission_error", // when participant responds during imagination trials
+                        "false_alarm",      // when participant responds during lure trials
+                        "miss",
+                        "glitch_shown",
+                        "glitch_assigned"
+                    ]);
 
-            // Creates a filename-safe version of the participant ID
-            const safeParticipantId = String(participantId)
-                // Replaces every character except letters, numbers, underscores, and hyphens with an underscore
-                .replace(/[^a-zA-Z0-9_-]/g, "_");
+                // Creates a filename-safe version of the participant ID
+                const safeParticipantId = String(participantId)
+                    // Replaces every character except letters, numbers, underscores, and hyphens with an underscore
+                    .replace(/[^a-zA-Z0-9_-]/g, "_");
 
-            // Creates a filename-safe timestamp when the experiment finishes
-            const timestamp = new Date()
-                // Converts the current date and time to a standardized UTC text format
-                .toISOString()
-                // Replaces every colon and period with a hyphen
-                .replace(/[:.]/g, "-");
+                // Creates a filename-safe timestamp when the experiment finishes
+                const timestamp = new Date()
+                    // Converts the current date and time to a standardized UTC text format
+                    .toISOString()
+                    // Replaces every colon and period with a hyphen
+                    .replace(/[:.]/g, "-");
 
-            // Creates a filename for the CSV file that includes the participant ID and timestamp
-            const fileName =
-                `security_guard_${safeParticipantId}_${timestamp}.csv`;
+                // Creates a filename for the CSV file that includes the participant ID and timestamp
+                const fileName =
+                    `security_guard_${safeParticipantId}_${timestamp}.csv`;
 
-            // Triggers a local browser download of the cleaned dataset as a CSV file (local download for now, but can be changed to server upload later)
-            analysisData.localSave("csv", fileName);
+                // Triggers a local browser download of the cleaned dataset as a CSV file (local download for now, but can be changed to server upload later)
+                analysisData.localSave("csv", fileName);
 
-        }
-    });
+            }
+        });
 
-    // Creates an empty timeline that will hold all the trials and instructions
-    const timeline = [];
+        // Creates an empty timeline that will hold all the trials and instructions
+        const timeline = [];
 
-    // Reads the participant ID from the page URL (later: Qualtrics integration) or uses TEST_LOCAL when no ID is provided
-    const participantId =
-        jsPsych.data.getURLVariable("participant_id") || "TEST_LOCAL";
+        // Reads the participant ID from the page URL (later: Qualtrics integration) or uses TEST_LOCAL when no ID is provided
+        const participantId =
+            jsPsych.data.getURLVariable("participant_id") || "TEST_LOCAL";
 
-    // Adds the same participant and session information to every trial's data row
-    jsPsych.data.addProperties({
-        // Stores the participant ID in the participant_id column
-        participant_id: participantId,
-        // Records the session start time in standardized UTC format
-        session_start: new Date().toISOString()
-    });
+        // Adds the same participant and session information to every trial's data row
+        jsPsych.data.addProperties({
+            // Stores the participant ID in the participant_id column
+            participant_id: participantId,
+            // Records the session start time in standardized UTC format
+            session_start: new Date().toISOString()
+        });
 
-    // Defining the complete set of main stimuli
-    // Each stimulus is stored as an object with four properties:
-    // id: unique identifier of the stimulus
-    // unsafe: file path of the unsafe image
-    // description: possible negative consequence if the situation remains unsafe
-    // secured: file path of the secured image
-    const mainStimuli = [
-        // 1
-        {
-            id: "tappancs",
-            unsafe: "img/tappancs_unsafe.png",
-            description: "Valaki Tappancs, az őrkutya előtt hagyott egy vödör mérgező folyadékot.<br>Ha nem távolítja el, Tappancs beleihat.",
-            secured: "img/tappancs_secured.png"
-        },
-        // 2
-        {
-            id: "laptop",
-            unsafe: "img/laptop_unsafe.png",
-            description: "A laptopon nyitva maradt egy bizalmas adatokat tartalmazó fájl.<br>Ha nem zárja be, illetéktelenek hozzáférhetnek az adatokhoz.",
-            secured: "img/laptop_secured.png"
-        },
-        // 3
-        {
-            id: "needles",
-            unsafe: "img/needles_unsafe.png",
-            description: "Valaki gombostűket szórt szét a közös ropi mellett.<br>Ha nem szedi össze őket, belekeveredhetnek az ételbe, és valaki megsérülhet.",
-            secured: "img/needles_secured.png"
-        },
-        // 4
-        {
-            id: "spoons",
-            unsafe: "img/spoons_unsafe.png",
-            description: "Egy használt, piszkos evőeszköz került a tiszták közé.<br>Ha nem teszi mindet a mosogatógépbe, valaki herpesz fertőzést kaphat.",
-            secured: "img/spoons_secured.png"
-        },
-        // 5
-        {
-            id: "kettle",
-            unsafe: "img/kettle_unsafe.png",
-            description: "A vízforraló bedugva maradt.<br>Ha nem húzza ki a konnektorból, tüzet okozhat.",
-            secured: "img/kettle_secured.png"
-        },
-        // 6
-        {
-            id: "car",
-            unsafe: "img/car_unsafe.png",
-            description: "A céges autó kereke mögé néha elbújik egy macska.<br>Ha nem ellenőrzi le, hogy ott van-e a macska, mielőtt elindul, megsebesítheti.",
-            secured: "img/car_secured.png"
-        },
-        // 7
-        {
-            id: "powerstrip",
-            unsafe: "img/powerstrip_unsafe.png",
-            description: "A földön lévő elosztó környékére kifolyt a víz virágöntözés közben.<br>Ha nem törli fel, áramütést kaphat valaki.",
-            secured: "img/powerstrip_secured.png"
-        },
-        // 8
-        {
-            id: "blood",
-            unsafe: "img/blood_unsafe.png",
-            description: "Valaki egy véres zsebkendőt az asztalán felejtett.<br>Ha nem dobja ki, HIV-vel fertőzhet meg valakit.",
-            secured: "img/blood_secured.png"
-        },
-        // 9
-        {
-            id: "chlorine",
-            unsafe: "img/chlorine_unsafe.png",
-            description: "A vegyszerekre nem csavarták vissza a kupakot.<br>Ha felborulnak és összekeverednek, halálos mérgezést okozó klórgáz keletkezhet.",
-            secured: "img/chlorine_secured.png"
-        },
-        // 10
-        {
-            id: "airconditioner",
-            unsafe: "img/airconditioner_unsafe.png",
-            description: "Valaki ételmaradéka hetek óta a rothad.<br>Ha nem dobja ki, a mutálódó gombaspórák bejuthatnak a légkondícionálóba, és mindenki tüdőgyulladást kap miatta.",
-            secured: "img/airconditioner_secured.png"
-        },
-        // 11
-        {
-            id: "candle",
-            unsafe: "img/candle_unsafe.png",
-            description: "Valaki égve hagyta az illatgyertyáját a papírok között.<br>Ha nem fújja el, minden kigyulladhat.",
-            secured: "img/candle_secured.png"
-        },
-        // 12
-        {
-            id: "medication",
-            unsafe: "img/medication_unsafe.png",
-            description: "Valaki a vérnyomáscsökkentőjét elöl hagyta.<br>Ha nem teszi el, holnap a kollégája gyereke cukorkának nézheti és mérgezést kaphat tőle.",
-            secured: "img/medication_secured.png"
-        },
-        // 13
-        {
-            id: "hantavirus",
-            unsafe: "img/hantavirus_unsafe.png",
-            description: "A kávéfőző mellett gyanús, fekete bogyók (patkányürülék) jelentek meg.<br>Ha nem nem fertőtlenít mindent, a levegőbe kerülő hantavírus miatt veseelégtelenséget kaphat mindenki.",
-            secured: "img/hantavirus_secured.png"
-        },
-        // 14
-        {
-            id: "nail",
-            unsafe: "img/nail_unsafe.png",
-            description: "Egy rozsdás szög beleesett a fotelbe.<br>Ha nem veszi fel, valaki beleülhet és tetanuszt kaphat.",
-            secured: "img/nail_secured.png"
-        },
-        // 15
-        {
-            id: "box",
-            unsafe: "img/box_unsafe.png",
-            description: "Egy húszkilós, fémalkatrészekkel teli doboz a legfelső polc peremén billeg.<br>Ha nem tolja beljebb, ráeshet az alatta álló kolléga fejére, és betörheti a koponyáját.",
-            secured: "img/box_secured.png"
-        },
-        // 16
-        {
-            id: "porn",
-            unsafe: "img/porn_unsafe.png",
-            description: "Egy számítógép bekapcsolva maradt.<br>Ha nem kapcsolja ki, hackerek gyerekpornót streamelhetnek a cég IP-címéről, amiért Önt fogják lecsukni.",
-            secured: "img/porn_secured.png"
-        },
-        // 17
-        {
-            id: "balcony",
-            unsafe: "img/balcony_unsafe.png",
-            description: "Az erkély korlátjának egyik csavarja kilazult.<br>Ha nem húzza meg azonnal, valaki nekidőlhet, a korlát kiszakadhat, és a mélybe zuhanva meghalhat.",
-            secured: "img/balcony_secured.png"
-        },
-        // 18
-        {
-            id: "glass",
-            unsafe: "img/glass_unsafe.png",
-            description: "Korábban eltört egy pohár az irodai hörcsög ketrece mellett.<br>Ha nem cseréli ki alatta a forgácsot, és netán üvegszilánk esett bele, azok súlyosan megsebezhetik a kisállatot.",
-            secured: "img/glass_secured.png"
-        },
-        // 19
-        {
-            id: "hepatitis",
-            unsafe: "img/hepatitis_unsafe.png",
-            description: "A takarítónak egy rongya van. A wc-ket és a billentyűzeteket is ugyanezzel törli le.<br>Ha nem takarítja le újra a billenyűzeteket, hepatitis-fertőzést kaphatnak a dolgozók, ami májrákot okozhat.",
-            secured: "img/hepatitis_secured.png"
-        },
-        // 20
-        {
-            id: "stove",
-            unsafe: "img/stove_unsafe.png",
-            description: "A gáztűzhely egyik gombja elfordítva maradt, de a láng már nem ég.<br>Ha nem zárja el azonnal és nem szellőztet, a felgyülemlő gáz egyetlen szikrától felrobbanthatja az egész épületet.",
-            secured: "img/stove_secured.png"
-        },
-        // 21
-        {
-            id: "sponge",
-            unsafe: "img/sponge_unsafe.png",
-            description: "Korábban látta, hogy valaki a közös konyhai mosogatószivaccsal feltörölte a földet.<br> Ha nem cseréli le, mindenki brutális szalmonella-fertőzést kaphat.",
-            secured: "img/sponge_secured.png"
-        },
-        // 22
-        {
-            id: "asymmetry",
-            unsafe: "img/asymmetry_unsafe.png",
-            description: "Az asztalon a tűzőgép és a tolltartó egymással párhuzamosan.<br>Ha nem igazítja meg őket azonnal, a szerettei holnap hajnalban meghalnak.",
-            secured: "img/asymmetry_secured.png"
-        },
-        // 23
-        {
-            id: "sacred",
-            unsafe: "img/sacred_unsafe.png",
-            description: "Egy Biblia a földre esett, ráadásul pont egy koszos bakancs mellé.<br>Ha nem rakja el azonnal, örök kárhozatra lesz ítélve, és egy borzalmas tragédia lesz a büntetése.",
-            secured: "img/sacred_secured.png"
-        },
-        // 24
-        {
-            id: "email",
-            unsafe: "img/email_unsafe.png",
-            description: "Egy dühös, főnököt szidalmazó üzenet maradt a piszkozatok között, és az egér kurzora a 'küldés' gombon áll.<br>Ha nem törli ki azonnal, és elküldi, azonnal kirúgják, feketelistára teszik a szakmában, és az utcára kerül.",
-            secured: "img/email_secured.png"
-        },
-        // 25
-        {
-            id: "handbrake",
-            unsafe: "img/handbrake_unsafe.png",
-            description: "A céges kisbusz egy meredek lejtőn parkol, de a kézifék mintha nem lenne teljesen behúzva.<br>Ha nem húzza be teljesen, a kisbusz elszabadulhat, és halálra zúzhat egy lejjebb sétáló óvodás csoportot.",
-            secured: "img/handbrake_secured.png"
-        },
-        // 26
-        {
-            id: "mirror",
-            unsafe: "img/mirror_unsafe.png",
-            description: "Egy tükör billeg az asztal szélén.<br>Ha nem tolja beljebb és leesik, hét év balszerencse.",
-            secured: "img/mirror_secured.png"
-        },
-        // 27
-        {
-            id: "toxoplasma",
-            unsafe: "img/toxoplasma_unsafe.png",
-            description: "Az egyik irodába beszabadult egy kóbor macska és a virágok közé végezte el a dolgát.<br>Ha nem takarítja fel, a várandós kolléganője toxoplazmózist kap és a magzat súlyos idegrendszeri károsodást szenved.",
-            secured: "img/toxoplasma_secured.png"
-        },
-        // 28
-        {
-            id: "telephone",
-            unsafe: "img/telephone_unsafe.png",
-            description: "Az egyik telefonkagylót valaki nem tette teljesen vissza.<br>Ha nem teszi vissza, lehallgathatják a dolgozókat.",
-            secured: "img/telephone_secured.png"
-        },
-        // 29
-        {
-            id: "bag",
-            unsafe: "img/bag_unsafe.png",
-            description: "Egy furcsa táskát tettek le ma az irodában.<br>Ha nem ellenőrzi a tartalmát, lehet, hogy bomba van benne.",
-            secured: "img/bag_secured.png"
-        },
-        // 30
-        {
-            id: "bird",
-            unsafe: "img/bird_unsafe.png",
-            description: "Az egyik ablakot nyitva felejtették.<br>Ha nem csukja be, beszállhat egy madár, és reggelre mindent szétver bent.",
-            secured: "img/bird_secured.png"
-        },
-        // 31
-        {
-            id: "money",
-            unsafe: "img/money_unsafe.png",
-            description: "Az egyik asztalon valaki egy tízezrest hagyott.<br>Ha nem ellenőrzi le a zsebeit és kiderül, hogy ellopta, le fogják csukni.",
-            secured: "img/money_secured.png"
-        },
-        // 32
-        {
-            id: "food",
-            unsafe: "img/food_unsafe.png",
-            description: "Valaki kint felejtette a pulton a mézes krémest.<br>Ha nem teszi hűtőbe, beköpik a legyek és megromlik, súlyos ételmérgezés lehet a vége. ",
-            secured: "img/food_secured.png"
-        },
-        // 33
-        {
-            id: "document",
-            unsafe: "img/document_unsafe.png",
-            description: "Egy hivatalos papíron, amit büntetőjogi felelőssége tudatában kellett kitöltenie, elírt egy számjegyet.<br>Ha nem javítja ki, okirat-hamisításért lecsukják.",
-            secured: "img/document_secured.png"
-        },
-        // 34
-        {
-            id: "charger",
-            unsafe: "img/charger_unsafe.png",
-            description: "Valaki bedugva felejtett egy telefontöltőt.<br>Ha nem húzza ki, túlmelegedtet és tüzet okozhat",
-            secured: "img/charger_secured.png"
-        },
-        // 35
-        {
-            id: "slippery",
-            unsafe: "img/slippery_unsafe.png",
-            description: "A folyosón kiömlött valami folyadék.<br>Ha nem törli fel, valaki elcsúszhat rajta és csonttörést szenvedhet.",
-            secured: "img/slippery_secured.png"
-        },
-        // 36
-        {
-            id: "ducttape",
-            unsafe: "img/ducttape_unsafe.png",
-            description: "Becsapta a huzat az ajtót és megrepedt az üveg.<br>Ha nem ragasztja meg, könnyen betörhet, ha valaki hozzáér és megvághatja.",
-            secured: "img/ducttape_secured.png"
-        },
-        // 37
-        {
-            id: "atticwindow",
-            unsafe: "img/atticwindow_unsafe.png",
-            description: "Nyitva maradt a tetőtéri iroda ablaka.<br>Ha nem zárja be és vihar lesz, minden elázik az irodában.",
-            secured: "img/atticwindow_secured.png"
-        },
-        // 38
-        {
-            id: "worktracker",
-            unsafe: "img/worktracker_unsafe.png",
-            description: "Nem biztos benne, hogy elindította a munkaidő-nyilvántartót a gépén.<br>Ha nem ellenőrzi le, a főnöke azt fogja hinni, hogy lógott egész nap, és kirúgják.",
-            secured: "img/worktracker_secured.png"
-        },
-        // 39
-        {
-            id: "webcam",
-            unsafe: "img/webcam_unsafe.png",
-            description: "Az egyik laptopon nyitva maradt a webkamera elhúzható takarója.<br>Ha nem húzza be a fedelet, hackerek titokban megfigyelhetik a dolgozókat.",
-            secured: "img/webcam_secured.png"
-        },
-        // 40 
-        {
-            id: "lockedcolleague",
-            unsafe: "img/lockedcolleague_unsafe.png",
-            description: "Zárás előtt nem nézett be minden helyiségbe.<br>Ha nem ellenőrzi le az összes szobát, véletlenül rázárhatja az ajtót egy bent lévő kollégára, akinek emiatt az irodában kell éjszakáznia.",
-            secured: "img/lockedcolleague_secured.png"
-        },
-        // 41
-        {
-            id: "marten",
-            unsafe: "img/marten_unsafe.png",
-            description: "Furcsa zajt hallott a céges autó motorházteteje alól a parkolóban.<br>Ha nem nyitja fel és ellenőrzi a kábeleket, lehet, hogy egy nyest elrágja őket.",
-            secured: "img/marten_secured.png"
-        },
-        // 42 
-        {
-            id: "alarm",
-            unsafe: "img/alarm_unsafe.png",
-            description: "A riasztóberendezés élesítése után a jelzőfény furcsán pislákolt.<br>Ha nem ellenőrzi le újra a rendszert, lehet, hogy nem kapcsolt be, éjjel mindent ellopnak az irodából.",
-            secured: "img/alarm_secured.png"
-        },
-        // 43 
-        {
-            id: "fertilizer",
-            unsafe: "img/fertilizer_unsafe.png",
-            description: "Valaki egy ásványvizes flakonban hagyta a növényeknek szánt tápoldatot az asztalon.<br>Ha nem dobja ki azonnal, egy kolléga véletlenül belekortyol és súlyos, mérgezést kap.",
-            secured: "img/fertilizer_secured.png"
-        },
-        // 44
-        {
-            id: "airfreshener",
-            unsafe: "img/airfreshener_unsafe.png",
-            description: "Egy hajtógázas légfrissítő sprayt felejtettek a forró radiátoron.<br>Ha nem veszi le onnan azonnal, a melegtől a flakonban túlnyomás keletkezik, felrobban, és az egész iroda leég.",
-            secured: "img/airfreshener_secured.png"
-        },
-        // 45 
-        {
-            id: "foam",
-            unsafe: "img/foam_unsafe.png",
-            description: "A konyhában a mosogatón rajta maradt a tisztítószer habja.<br>Ha nem mossa le alaposan, reggelre rászárad, láthatatlan lesz, és valaki poharába kerülve mérgezést okozhat.",
-            secured: "img/foam_secured.png"
-        },
-        // 46 
-        {
-            id: "strawberry",
-            unsafe: "img/strawberry_unsafe.png",
-            description: "Egy tál mosatlan eper maradt a konyhaasztalon.<br>Ha nem mossa meg alaposan az egészet, mindenki galandférges lehet tőle.",
-            secured: "img/strawberry_secured.png"
-        },
-        // 47 
-        {
-            id: "lightswitch",
-            unsafe: "img/lightswitch_unsafe.png",
-            description: "Az egyik villanykapcsoló burkolata meglazult és kiáll a faltól.<br>Ha nem rögzíti vissza, a következő ember, aki gyanútlanul felkapcsolja a villanyt, halálos áramütést szenvedhet.",
-            secured: "img/lightswitch_secured.png"
-        },
-        // 48
-        {
-            id: "firedoor",
-            unsafe: "img/firedoor_unsafe.png",
-            description: "A folyosó végi tűzgátló ajtót valaki kiékelte egy kartondobozzal.<br>Ha nem távolítja el az éket és csukja be az ajtót, egy éjszakai tűz esetén a lángok pillanatok alatt átterjednek a másik szárnyra, és az egész épület leég.",
-            secured: "img/firedoor_secured.png"
-        },
-        // 49
-        {
-            id: "faucet",
-            unsafe: "img/faucet_unsafe.png",
-            description: "A mosdóban az egyik csaptelep egy picit csöpög.<br>Ha nem zárja el tökéletesen, a folyamatos vízpazarlás miatt személyesen felelős lesz azért, hogy a Földön elfogy az édesvíz.",
-            secured: "img/faucet_secured.png"
-        },
-        // 50
-        {
-            id: "suicide",
-            unsafe: "img/suicide_unsafe.png",
-            description: "Egy levél altató maradt az asztalon.<br>Ha nem dobja ki őket azonnal, egy pillanatnyi elmezavarában az összeset beveszi, és szándéka ellenére öngyilkosságot követ el.",
-            secured: "img/suicide_secured.png"
-        }
-    ];
+        // Defining the complete set of main stimuli
+        // Each stimulus is stored as an object with four properties:
+        // id: unique identifier of the stimulus
+        // unsafe: file path of the unsafe image
+        // description: possible negative consequence if the situation remains unsafe
+        // secured: file path of the secured image
+        const mainStimuli = [
+            // 1
+            {
+                id: "tappancs",
+                unsafe: "img/tappancs_unsafe.png",
+                description: "Valaki Tappancs, az őrkutya előtt hagyott egy vödör mérgező folyadékot.<br>Ha nem távolítja el, Tappancs beleihat.",
+                secured: "img/tappancs_secured.png"
+            },
+            // 2
+            {
+                id: "laptop",
+                unsafe: "img/laptop_unsafe.png",
+                description: "A laptopon nyitva maradt egy bizalmas adatokat tartalmazó fájl.<br>Ha nem zárja be, illetéktelenek hozzáférhetnek az adatokhoz.",
+                secured: "img/laptop_secured.png"
+            },
+            // 3
+            {
+                id: "needles",
+                unsafe: "img/needles_unsafe.png",
+                description: "Valaki gombostűket szórt szét a közös ropi mellett.<br>Ha nem szedi össze őket, belekeveredhetnek az ételbe, és valaki megsérülhet.",
+                secured: "img/needles_secured.png"
+            },
+            // 4
+            {
+                id: "spoons",
+                unsafe: "img/spoons_unsafe.png",
+                description: "Egy használt, piszkos evőeszköz került a tiszták közé.<br>Ha nem teszi mindet a mosogatógépbe, valaki herpeszfertőzést kaphat.",
+                secured: "img/spoons_secured.png"
+            },
+            // 5
+            {
+                id: "kettle",
+                unsafe: "img/kettle_unsafe.png",
+                description: "A vízforraló bedugva maradt.<br>Ha nem húzza ki a konnektorból, tüzet okozhat.",
+                secured: "img/kettle_secured.png"
+            },
+            // 6
+            {
+                id: "car",
+                unsafe: "img/car_unsafe.png",
+                description: "A céges autó kereke mögé néha elbújik egy macska.<br>Ha nem ellenőrzi le, hogy ott van-e a macska, mielőtt elindul, megsebesítheti.",
+                secured: "img/car_secured.png"
+            },
+            // 7
+            {
+                id: "powerstrip",
+                unsafe: "img/powerstrip_unsafe.png",
+                description: "A földön lévő elosztó környékére kifolyt a víz virágöntözés közben.<br>Ha nem törli fel, áramütést kaphat valaki.",
+                secured: "img/powerstrip_secured.png"
+            },
+            // 8
+            {
+                id: "blood",
+                unsafe: "img/blood_unsafe.png",
+                description: "Valaki egy véres zsebkendőt az asztalán felejtett.<br>Ha nem dobja ki, HIV-vel fertőzhet meg valakit.",
+                secured: "img/blood_secured.png"
+            },
+            // 9
+            {
+                id: "chlorine",
+                unsafe: "img/chlorine_unsafe.png",
+                description: "A vegyszerekre nem csavarták vissza a kupakot.<br>Ha felborulnak és összekeverednek, halálos mérgezést okozó klórgáz keletkezhet.",
+                secured: "img/chlorine_secured.png"
+            },
+            // 10
+            {
+                id: "airconditioner",
+                unsafe: "img/airconditioner_unsafe.png",
+                description: "Valakinek az ételmaradéka hetek óta rothad.<br>Ha nem dobja ki, a mutálódó gombaspórák bejuthatnak a légkondicionálóba, és mindenki tüdőgyulladást kap miatta.",
+                secured: "img/airconditioner_secured.png"
+            },
+            // 11
+            {
+                id: "candle",
+                unsafe: "img/candle_unsafe.png",
+                description: "Valaki égve hagyta az illatgyertyáját a papírok között.<br>Ha nem fújja el, minden kigyulladhat.",
+                secured: "img/candle_secured.png"
+            },
+            // 12
+            {
+                id: "medication",
+                unsafe: "img/medication_unsafe.png",
+                description: "Valaki a vérnyomáscsökkentőjét elöl hagyta.<br>Ha nem teszi el, holnap a kollégája gyereke cukorkának nézheti és mérgezést kaphat tőle.",
+                secured: "img/medication_secured.png"
+            },
+            // 13
+            {
+                id: "hantavirus",
+                unsafe: "img/hantavirus_unsafe.png",
+                description: "A kávéfőző mellett gyanús, fekete bogyók (patkányürülék) jelentek meg.<br>Ha nem fertőtlenít mindent, a levegőbe kerülő hantavírus miatt veseelégtelenséget kaphat mindenki.",
+                secured: "img/hantavirus_secured.png"
+            },
+            // 14
+            {
+                id: "nail",
+                unsafe: "img/nail_unsafe.png",
+                description: "Egy rozsdás szög beleesett a fotelbe.<br>Ha nem veszi fel, valaki beleülhet és tetanuszt kaphat.",
+                secured: "img/nail_secured.png"
+            },
+            // 15
+            {
+                id: "box",
+                unsafe: "img/box_unsafe.png",
+                description: "Egy húszkilós, fémalkatrészekkel teli doboz a legfelső polc peremén billeg.<br>Ha nem tolja beljebb, ráeshet az alatta álló kolléga fejére, és betörheti a koponyáját.",
+                secured: "img/box_secured.png"
+            },
+            // 16
+            {
+                id: "porn",
+                unsafe: "img/porn_unsafe.png",
+                description: "Egy számítógép bekapcsolva maradt.<br>Ha nem kapcsolja ki, hackerek gyerekpornót streamelhetnek a cég IP-címéről, amiért Önt fogják lecsukni.",
+                secured: "img/porn_secured.png"
+            },
+            // 17
+            {
+                id: "balcony",
+                unsafe: "img/balcony_unsafe.png",
+                description: "Az erkély korlátjának egyik csavarja kilazult.<br>Ha nem húzza meg azonnal, valaki nekidőlhet, a korlát kiszakadhat, és a mélybe zuhanva meghalhat.",
+                secured: "img/balcony_secured.png"
+            },
+            // 18
+            {
+                id: "glass",
+                unsafe: "img/glass_unsafe.png",
+                description: "Korábban eltört egy pohár az irodai hörcsög ketrece mellett.<br>Ha nem cseréli ki alatta a forgácsot, és netán üvegszilánkok estek bele, azok súlyosan megsebezhetik a kisállatot.",
+                secured: "img/glass_secured.png"
+            },
+            // 19
+            {
+                id: "hepatitis",
+                unsafe: "img/hepatitis_unsafe.png",
+                description: "A takarítónak egy rongya van. A WC-ket és a billentyűzeteket is ugyanezzel törli le.<br>Ha nem takarítja le újra a billentyűzeteket, hepatitis-fertőzést kaphatnak a dolgozók, ami májrákot okozhat.",
+                secured: "img/hepatitis_secured.png"
+            },
+            // 20
+            {
+                id: "stove",
+                unsafe: "img/stove_unsafe.png",
+                description: "A gáztűzhely egyik gombja elfordítva maradt, de a láng már nem ég.<br>Ha nem zárja el azonnal és nem szellőztet, a felgyülemlő gáz egyetlen szikrától felrobbanthatja az egész épületet.",
+                secured: "img/stove_secured.png"
+            },
+            // 21
+            {
+                id: "sponge",
+                unsafe: "img/sponge_unsafe.png",
+                description: "Korábban látta, hogy valaki a közös konyhai mosogatószivaccsal feltörölte a földet.<br> Ha nem cseréli le, mindenki brutális szalmonella-fertőzést kaphat.",
+                secured: "img/sponge_secured.png"
+            },
+            // 22
+            {
+                id: "asymmetry",
+                unsafe: "img/asymmetry_unsafe.png",
+                description: "Az asztalon a tűzőgép és a tolltartó egymással párhuzamosan áll.<br>Ha nem igazítja meg őket azonnal, a szerettei holnap hajnalban meghalnak.",
+                secured: "img/asymmetry_secured.png"
+            },
+            // 23
+            {
+                id: "sacred",
+                unsafe: "img/sacred_unsafe.png",
+                description: "Egy Biblia a földre esett, ráadásul pont egy koszos bakancs mellé.<br>Ha nem rakja el azonnal, örök kárhozatra lesz ítélve, és egy borzalmas tragédia lesz a büntetése.",
+                secured: "img/sacred_secured.png"
+            },
+            // 24
+            {
+                id: "email",
+                unsafe: "img/email_unsafe.png",
+                description: "Egy dühös, főnököt szidalmazó üzenet maradt a piszkozatok között, és az egér kurzora a 'küldés' gombon áll.<br>Ha nem törli ki azonnal, és elküldi, azonnal kirúgják, feketelistára teszik a szakmában, és az utcára kerül.",
+                secured: "img/email_secured.png"
+            },
+            // 25
+            {
+                id: "handbrake",
+                unsafe: "img/handbrake_unsafe.png",
+                description: "A céges kisbusz egy meredek lejtőn parkol, de a kézifék mintha nem lenne teljesen behúzva.<br>Ha nem húzza be teljesen, a kisbusz elszabadulhat, és halálra zúzhat egy lejjebb sétáló óvodáscsoportot.",
+                secured: "img/handbrake_secured.png"
+            },
+            // 26
+            {
+                id: "mirror",
+                unsafe: "img/mirror_unsafe.png",
+                description: "Egy tükör billeg az asztal szélén.<br>Ha nem tolja beljebb és leesik, hét év balszerencse.",
+                secured: "img/mirror_secured.png"
+            },
+            // 27
+            {
+                id: "toxoplasma",
+                unsafe: "img/toxoplasma_unsafe.png",
+                description: "Az egyik irodába beszabadult egy kóbor macska és a virágok közé végezte el a dolgát.<br>Ha nem takarítja fel, a várandós kolléganője toxoplazmózist kap, és a magzat súlyos idegrendszeri károsodást szenved.",
+                secured: "img/toxoplasma_secured.png"
+            },
+            // 28
+            {
+                id: "telephone",
+                unsafe: "img/telephone_unsafe.png",
+                description: "Az egyik telefonkagylót valaki nem tette teljesen vissza.<br>Ha nem teszi vissza, lehallgathatják a dolgozókat.",
+                secured: "img/telephone_secured.png"
+            },
+            // 29
+            {
+                id: "bag",
+                unsafe: "img/bag_unsafe.png",
+                description: "Egy furcsa táskát tettek le ma az irodában.<br>Ha nem ellenőrzi a tartalmát, lehet, hogy bomba van benne.",
+                secured: "img/bag_secured.png"
+            },
+            // 30
+            {
+                id: "bird",
+                unsafe: "img/bird_unsafe.png",
+                description: "Az egyik ablakot nyitva felejtették.<br>Ha nem csukja be, beszállhat egy madár, és reggelre mindent szétver bent.",
+                secured: "img/bird_secured.png"
+            },
+            // 31
+            {
+                id: "money",
+                unsafe: "img/money_unsafe.png",
+                description: "Az egyik asztalon valaki egy tízezrest hagyott.<br>Ha nem ellenőrzi le a zsebeit és kiderül, hogy ellopta, le fogják csukni.",
+                secured: "img/money_secured.png"
+            },
+            // 32
+            {
+                id: "food",
+                unsafe: "img/food_unsafe.png",
+                description: "Valaki kint felejtette a pulton a mézes krémest.<br>Ha nem teszi hűtőbe, beköpik a legyek, és megromlik, súlyos ételmérgezés lehet a vége. ",
+                secured: "img/food_secured.png"
+            },
+            // 33
+            {
+                id: "document",
+                unsafe: "img/document_unsafe.png",
+                description: "Egy hivatalos papíron, amit büntetőjogi felelőssége tudatában kellett kitöltenie, elírt egy számjegyet.<br>Ha nem javítja ki, okirat-hamisításért lecsukják.",
+                secured: "img/document_secured.png"
+            },
+            // 34
+            {
+                id: "charger",
+                unsafe: "img/charger_unsafe.png",
+                description: "Valaki bedugva felejtett egy telefontöltőt.<br>Ha nem húzza ki, túlmelegedhet és tüzet okozhat.",
+                secured: "img/charger_secured.png"
+            },
+            // 35
+            {
+                id: "slippery",
+                unsafe: "img/slippery_unsafe.png",
+                description: "A folyosón kiömlött valami folyadék.<br>Ha nem törli fel, valaki elcsúszhat rajta és csonttörést szenvedhet.",
+                secured: "img/slippery_secured.png"
+            },
+            // 36
+            {
+                id: "ducttape",
+                unsafe: "img/ducttape_unsafe.png",
+                description: "Becsapta a huzat az ajtót, és megrepedt az üveg.<br>Ha nem ragasztja meg, az üveg könnyen betörhet, ha valaki hozzáér, és az illető megvághatja magát.",
+                secured: "img/ducttape_secured.png"
+            },
+            // 37
+            {
+                id: "atticwindow",
+                unsafe: "img/atticwindow_unsafe.png",
+                description: "Nyitva maradt a tetőtéri iroda ablaka.<br>Ha nem zárja be és vihar lesz, minden elázik az irodában.",
+                secured: "img/atticwindow_secured.png"
+            },
+            // 38
+            {
+                id: "worktracker",
+                unsafe: "img/worktracker_unsafe.png",
+                description: "Nem biztos benne, hogy elindította a munkaidő-nyilvántartót a gépén.<br>Ha nem ellenőrzi le, a főnöke azt fogja hinni, hogy lógott egész nap, és kirúgják.",
+                secured: "img/worktracker_secured.png"
+            },
+            // 39
+            {
+                id: "webcam",
+                unsafe: "img/webcam_unsafe.png",
+                description: "Az egyik laptopon nyitva maradt a webkamera elhúzható takarója.<br>Ha nem húzza be a fedelet, hackerek titokban megfigyelhetik a dolgozókat.",
+                secured: "img/webcam_secured.png"
+            },
+            // 40 
+            {
+                id: "lockedcolleague",
+                unsafe: "img/lockedcolleague_unsafe.png",
+                description: "Zárás előtt nem nézett be minden helyiségbe.<br>Ha nem ellenőrzi le az összes szobát, véletlenül rázárhatja az ajtót egy bent lévő kollégára, akinek emiatt az irodában kell éjszakáznia.",
+                secured: "img/lockedcolleague_secured.png"
+            },
+            // 41
+            {
+                id: "marten",
+                unsafe: "img/marten_unsafe.png",
+                description: "Furcsa zajt hallott a céges autó motorházteteje alól a parkolóban.<br>Ha nem nyitja fel és ellenőrzi a kábeleket, lehet, hogy egy nyest elrágja őket.",
+                secured: "img/marten_secured.png"
+            },
+            // 42 
+            {
+                id: "alarm",
+                unsafe: "img/alarm_unsafe.png",
+                description: "A riasztóberendezés élesítése után a jelzőfény furcsán pislákolt.<br>Ha nem ellenőrzi le újra a rendszert, lehet, hogy nem kapcsolt be, éjjel mindent ellopnak az irodából.",
+                secured: "img/alarm_secured.png"
+            },
+            // 43 
+            {
+                id: "fertilizer",
+                unsafe: "img/fertilizer_unsafe.png",
+                description: "Valaki egy ásványvizes flakonban hagyta a növényeknek szánt tápoldatot az asztalon.<br>Ha nem dobja ki azonnal, egy kolléga véletlenül belekortyol és súlyos mérgezést kap.",
+                secured: "img/fertilizer_secured.png"
+            },
+            // 44
+            {
+                id: "airfreshener",
+                unsafe: "img/airfreshener_unsafe.png",
+                description: "Egy hajtógázas légfrissítő sprayt felejtettek a forró radiátoron.<br>Ha nem veszi le onnan azonnal, a melegtől a flakonban túlnyomás keletkezik, felrobban, és az egész iroda leég.",
+                secured: "img/airfreshener_secured.png"
+            },
+            // 45 
+            {
+                id: "foam",
+                unsafe: "img/foam_unsafe.png",
+                description: "A konyhában a mosogatón rajta maradt a tisztítószer habja.<br>Ha nem mossa le alaposan, reggelre rászárad, láthatatlan lesz, és valaki poharába kerülve mérgezést okozhat.",
+                secured: "img/foam_secured.png"
+            },
+            // 46 
+            {
+                id: "strawberry",
+                unsafe: "img/strawberry_unsafe.png",
+                description: "Egy tál mosatlan eper maradt a konyhaasztalon.<br>Ha nem mossa meg alaposan az egészet, mindenki galandférges lehet tőle.",
+                secured: "img/strawberry_secured.png"
+            },
+            // 47 
+            {
+                id: "lightswitch",
+                unsafe: "img/lightswitch_unsafe.png",
+                description: "Az egyik villanykapcsoló burkolata meglazult és kiáll a faltól.<br>Ha nem rögzíti vissza, a következő ember, aki gyanútlanul felkapcsolja a villanyt, halálos áramütést szenvedhet.",
+                secured: "img/lightswitch_secured.png"
+            },
+            // 48
+            {
+                id: "firedoor",
+                unsafe: "img/firedoor_unsafe.png",
+                description: "A folyosó végi tűzgátló ajtót valaki kiékelte egy kartondobozzal.<br>Ha nem távolítja el az éket és csukja be az ajtót, egy éjszakai tűz esetén a lángok pillanatok alatt átterjednek a másik szárnyra, és az egész épület leég.",
+                secured: "img/firedoor_secured.png"
+            },
+            // 49
+            {
+                id: "faucet",
+                unsafe: "img/faucet_unsafe.png",
+                description: "A mosdóban az egyik csaptelep egy picit csöpög.<br>Ha nem zárja el tökéletesen, a folyamatos vízpazarlás miatt személyesen felelős lesz azért, hogy a Földön elfogy az édesvíz.",
+                secured: "img/faucet_secured.png"
+            },
+            // 50
+            {
+                id: "suicide",
+                unsafe: "img/suicide_unsafe.png",
+                description: "Egy levél altató maradt az asztalon.<br>Ha nem dobja ki őket azonnal, egy pillanatnyi elmezavarában az összeset beveszi, és szándéka ellenére öngyilkosságot követ el.",
+                secured: "img/suicide_secured.png"
+            }
+        ];
 
-    // Creates a randomly shuffled copy of the complete stimulus list for the current participant
-    const shuffledStimuli = jsPsych.randomization.shuffle([...mainStimuli]);
+        // Creates a randomly shuffled copy of the complete stimulus list for the current participant
+        const shuffledStimuli = jsPsych.randomization.shuffle([...mainStimuli]);
 
-    // Sets how many stimuli will appear during the learning phase (all remaining stimuli will become lures in the test phase) - 20% should be lures, so 80% of the stimuli are used for learning
-    const numberOfLearningItems = Math.round(mainStimuli.length * 0.8);
+        // Sets how many stimuli will appear during the learning phase (all remaining stimuli will become lures in the test phase) - 20% should be lures, so 80% of the stimuli are used for learning
+        const numberOfLearningItems = Math.round(mainStimuli.length * 0.8);
 
-    // Selects the required number of stimuli from the randomized list for learning
-    const learningStimuli = shuffledStimuli.slice(0, numberOfLearningItems);
+        // Selects the required number of stimuli from the randomized list for learning
+        const learningStimuli = shuffledStimuli.slice(0, numberOfLearningItems);
 
-    // Selects all remaining stimuli as lures
-    const lureStimuli = shuffledStimuli.slice(numberOfLearningItems);
+        // Selects all remaining stimuli as lures
+        const lureStimuli = shuffledStimuli.slice(numberOfLearningItems);
 
-    // Splits the learning stimuli equally between action and imagination
-    const halfOfLearningItems = numberOfLearningItems / 2;
+        // Splits the learning stimuli equally between action and imagination
+        const halfOfLearningItems = numberOfLearningItems / 2;
 
-    // Creates equal numbers of action and imagination labels, then randomizes their order
-    const learningConditions = jsPsych.randomization.shuffle([
-        // Creates one "action" label for half of the learning stimuli
-        ...Array(halfOfLearningItems).fill("action"),
-        // Creates one "imagination" label for the other half
-        ...Array(halfOfLearningItems).fill("imagination")
-    ]);
+        // Creates equal numbers of action and imagination labels, then randomizes their order
+        const learningConditions = jsPsych.randomization.shuffle([
+            // Creates one "action" label for half of the learning stimuli
+            ...Array(halfOfLearningItems).fill("action"),
+            // Creates one "imagination" label for the other half
+            ...Array(halfOfLearningItems).fill("imagination")
+        ]);
 
-    // Creates a new stimulus list in which every learning item receives a condition
-    const learningStimuliWithConditions = learningStimuli.map((item, index) => ({
-        // Copies all existing properties of the current stimulus
-        ...item,
-        // Adds the condition found at the same position in learningConditions
-        condition: learningConditions[index]
-    }));
-
-    // Sets the proportion of action items that will be assigned a glitch (25%)
-    const glitchProportion = 0.25;
-
-    // Creates a new list containing only the learning stimuli assigned to the action condition
-    const actionStimuli = learningStimuliWithConditions
-        // Keeps an item only when its condition is exactly "action"
-        .filter(item => item.condition === "action");
-
-    // Calculates how many action stimuli should receive a glitch
-    // Rounds the result to the nearest whole number
-    const numberOfGlitchItems = Math.round(
-        actionStimuli.length * glitchProportion
-    );
-
-    // Randomly selects the required number of unique action-item IDs for the glitch condition
-    const glitchItemIds = jsPsych.randomization.sampleWithoutReplacement(
-        // Extracts only the ID from each action stimulus
-        actionStimuli.map(item => item.id),
-        // Specifies how many IDs should be selected
-        numberOfGlitchItems
-    );
-
-    // Adds a true-or-false glitch property to every learning stimulus
-    learningStimuliWithConditions.forEach(item => {
-        // Sets glitch to true if the item's ID was selected, otherwise sets it to false
-        item.glitch = glitchItemIds.includes(item.id);
-    });
-
-    // Combines old and lure stimuli, then randomizes their order for the test phase
-    const testStimuli = jsPsych.randomization.shuffle([
-        // Copies all learning stimuli and labels them as previously presented ("old")
-        ...learningStimuliWithConditions.map(item => ({
+        // Creates a new stimulus list in which every learning item receives a condition
+        const learningStimuliWithConditions = learningStimuli.map((item, index) => ({
+            // Copies all existing properties of the current stimulus
             ...item,
-            memory_status: "old"
-        })),
+            // Adds the condition found at the same position in learningConditions
+            condition: learningConditions[index]
+        }));
 
-        // Copies all lure stimuli and labels them as not previously presented ("lure")
-        ...lureStimuli.map(item => ({
-            ...item,
-            memory_status: "lure"
-        }))
-    ]);
+        // Sets the proportion of action items that will be assigned a glitch (25%)
+        const glitchProportion = 0.25;
 
-    // Defines a preload trial so images are ready before the experiment begins
-    const preload = {
-        // Uses the jsPsych image-preloading plugin
-        type: jsPsychPreload,
-        // Lists every image file that should be loaded
-        images: [
-            'img/practice_door_unsafe.png',
-            'img/practice_door_secured.png',
-            'img/glitch.png',
-            // Adds the unsafe and secured image path of every main stimulus
-            ...mainStimuli.flatMap(item => [item.unsafe, item.secured])
-        ]
-    };
-    // Adds the preload trial as the first element of the timeline
-    timeline.push(preload);
+        // Creates a new list containing only the learning stimuli assigned to the action condition
+        const actionStimuli = learningStimuliWithConditions
+            // Keeps an item only when its condition is exactly "action"
+            .filter(item => item.condition === "action");
 
-    // BASIC INSTRUCTIONS
+        // Calculates how many action stimuli should receive a glitch
+        // Rounds the result to the nearest whole number
+        const numberOfGlitchItems = Math.round(
+            actionStimuli.length * glitchProportion
+        );
 
-    // Defining the first instruction screen
-    const instruction1 = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // Randomly selects the required number of unique action-item IDs for the glitch condition
+        const glitchItemIds = jsPsych.randomization.sampleWithoutReplacement(
+            // Extracts only the ID from each action stimulus
+            actionStimuli.map(item => item.id),
+            // Specifies how many IDs should be selected
+            numberOfGlitchItems
+        );
+
+        // Adds a true-or-false glitch property to every learning stimulus
+        learningStimuliWithConditions.forEach(item => {
+            // Sets glitch to true if the item's ID was selected, otherwise sets it to false
+            item.glitch = glitchItemIds.includes(item.id);
+        });
+
+        // Combines old and lure stimuli, then randomizes their order for the test phase
+        const testStimuli = jsPsych.randomization.shuffle([
+            // Copies all learning stimuli and labels them as previously presented ("old")
+            ...learningStimuliWithConditions.map(item => ({
+                ...item,
+                memory_status: "old"
+            })),
+
+            // Copies all lure stimuli and labels them as not previously presented ("lure")
+            ...lureStimuli.map(item => ({
+                ...item,
+                memory_status: "lure"
+            }))
+        ]);
+
+        // Defines a preload trial so images are ready before the task screens begin
+        const preload = {
+            // Uses the jsPsych image-preloading plugin
+            type: jsPsychPreload,
+            // Lists every image file that should be loaded
+            images: [
+                'img/practice_door_unsafe.png',
+                'img/practice_door_secured.png',
+                'img/glitch.png',
+                // Adds the unsafe and secured image path of every main stimulus
+                ...mainStimuli.flatMap(item => [item.unsafe, item.secured])
+            ]
+        };
+        // Adds the preload trial as the first element of the timeline
+        timeline.push(preload);
+
+        // BASIC INSTRUCTIONS
+
+        // Defining the first instruction screen
+        const instruction1 = {
+            // Uses the jsPsych HTML keyboard response plugin to display instructions and wait for a key press
+            type: jsPsychHtmlKeyboardResponse,
+            // The HTML content of the instruction screen
+            stimulus: `
         <div class="slide-arrow">&#10140;</div>
         
         <div class="slide-text">
@@ -780,16 +782,17 @@
             A feladata az, hogy <strong>ellenőrizze és tegye biztonságossá</strong> a területet,<br>
             mielőtt elhagyja azt.</p>
             
-            <p>Nyomja meg bármelyik billenytűt a továbbhaladáshoz.</p>
+            <p>Nyomja meg bármelyik billentyűt a továbbhaladáshoz.</p>
         </div>
         `
-    };
-    timeline.push(instruction1);
+        };
+        // Adds the first instruction screen to the timeline
+        timeline.push(instruction1);
 
-    // Defining the second instruction screen
-    const instruction2 = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // Defining the second instruction screen
+        const instruction2 = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="slide-arrow">&#10140;</div> 
         
         <div class="slide-text">
@@ -797,13 +800,13 @@
             <p><strong>Kétféle feladata lehet:</strong></p>
         </div>
       `
-    };
-    timeline.push(instruction2);
+        };
+        timeline.push(instruction2);
 
-    // Defining the third instruction screen
-    const instruction3 = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // Defining the third instruction screen
+        const instruction3 = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="slide-arrow">&#10140;</div>
 
         <div class="slide-text">
@@ -812,14 +815,15 @@
             <p>Példa: Megjelenik egy nyitott ajtó.<br> Ha a <strong>képernyő tetején</strong> azt látja, hogy <strong>“CSELEKEDJEN!”</strong>,<br> akkor nyomja meg a SPACE-billentyűt.</p>
             <p>A gombnyomás után a kép megváltozik,<br> és látni fogja, hogy a helyzet biztonságossá vált<br> (pl. bezárul az ajtó).</p>
             <p>Reagáljon <strong>gyorsan és pontosan</strong>, mert a képek csak egy rövid ideig lesznek láthatóak!</p>
-        `
-    };
-    timeline.push(instruction3);
+       </div>
+       `
+        };
+        timeline.push(instruction3);
 
-    // Defining the fourth instruction screen
-    const instruction4 = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // Defining the fourth instruction screen
+        const instruction4 = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="slide-arrow">&#10140;</div>
 
         <div class="slide-text">
@@ -827,95 +831,111 @@
             <p>Ha a <strong>képernyő tetején</strong> azt látja, hogy <strong>“KÉPZELJE EL!”</strong>,<br> akkor <strong>nem szabad gombot nyomnia</strong>.</p>
             <p>A feladata az, hogy <strong>képzelje el élénken és részletesen</strong>,<br> hogy Ön biztosítja a helyzetet.</p>
             <p>Példa: ha a nyitott ajtót látja, képzelje el, hogy bezárja az ajtót.<br> A kép egy <strong>rövid ideig lesz látható</strong>,<br> majd a feladat <strong>magától továbbhalad</strong>.</p>
+      </div>
       `
-    };
-    timeline.push(instruction4);
+        };
+        timeline.push(instruction4);
 
-    // PRACTICE TRIALS
+        // PRACTICE TRIALS
 
-    // Defining the instruction screen for the practice trials
-    const instructionPractice = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // Defining the instruction screen for the practice trials
+        const instructionPractice = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="slide-arrow">&#10140;</div>
         
         <div class="slide-text">
             <p>Most egy kis gyakorlás következik.</p>
+            </div>
       `
-    };
-    timeline.push(instructionPractice);
+        };
+        timeline.push(instructionPractice);
 
-    // Practice trial 1 - action
-    const practice_action_stimulus = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // Practice trial 1 - action
+        const practice_action_stimulus = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="trial-container">
             <div class="trial-header header-action">CSELEKEDJEN!</div>
             <img src="img/practice_door_unsafe.png" class="trial-image">
             <div class="trial-description">Valaki nyitva hagyott egy ajtót.<br>Ha nem zárja be, a szobából ellophatják a pénzt.</div>
         </div>
         `,
-        choices: [' '], // Only responds to the SPACE bar
-        trial_duration: 4000, // 4 seconds maximal display
-        data: { task: 'practice', learning_condition: 'action' },
-        on_finish: function (data) {
-            // We can explicitly tag an omission error for easier data analysis later
-            data.missed_response = data.response === null;
-        }
-    };
+            // Only responds to the SPACE bar
+            choices: [' '],
+            // 8 seconds maximal display
+            trial_duration: 8000,
+            // Tags the trial as a practice trial in the action condition
+            data: { task: 'practice', learning_condition: 'action' },
+            // Records whether the participant missed the response
+            on_finish: function (data) {
+                // We can explicitly tag an omission error for easier data analysis later
+                data.missed_response = data.response === null;
+            }
+        };
 
-    const practice_action_feedback = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // Feedback trial for the practice action trial
+        const practice_action_feedback = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="trial-container">
             <div class="trial-header header-action" style="visibility: hidden;">CSELEKEDJEN!</div>
             <img src="img/practice_door_secured.png" class="trial-image">
             <div class="trial-description" style="visibility: hidden;">Placeholder to keep layout stable</div>
         </div>
         `,
-        choices: "NO_KEYS",
-        trial_duration: 2000 // Shows the secured door for 2 seconds
-    };
+            // No key responses are allowed during feedback
+            choices: "NO_KEYS",
+            trial_duration: 2000 // shows the secured door for 2 seconds
+        };
 
-    const practice_action_conditional = {
-        timeline: [practice_action_feedback],
-        conditional_function: function () {
-            // Get the data from the immediately preceding trial
-            let data = jsPsych.data.get().last(1).values()[0];
-            // If response is NOT null, return true to show feedback. Otherwise, skip.
-            return data.response !== null;
-        }
-    };
+        // Conditional trial that only shows feedback if the participant responded in the practice action trial
+        const practice_action_conditional = {
+            // Uses a conditional timeline to determine whether to show feedback
+            timeline: [practice_action_feedback],
+            // The function checks the data from the previous trial to decide whether to show feedback
+            conditional_function: function () {
+                // Get the data from the immediately preceding trial
+                let data = jsPsych.data.get().last(1).values()[0];
+                // If response is NOT null, return true to show feedback. Otherwise, skip.
+                return data.response !== null;
+            }
+        };
 
-    timeline.push(practice_action_stimulus, practice_action_conditional);
+        // Adds the practice action trial and its conditional feedback to the timeline
+        timeline.push(practice_action_stimulus, practice_action_conditional);
 
-    // Practice trial 2 - imagination
-
-    const practice_imagination_stimulus = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // Practice trial 2 - imagination
+        const practice_imagination_stimulus = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="trial-container">
             <div class="trial-header header-imagine">KÉPZELJE EL!</div>
             <img src="img/practice_door_unsafe.png" class="trial-image">
             <div class="trial-description">Valaki nyitva hagyott egy ajtót.<br>Ha nem zárja be, a szobából ellophatják a pénzt.</div>
         </div>
         `,
-        choices: "ALL_KEYS", // Listens for ANY key press to catch false alarms
-        response_ends_trial: false, // Ensures the trial stays on screen for the full 4s even if a key is pressed
-        trial_duration: 4000, // 4 seconds maximal display
-        data: { task: 'practice', learning_condition: 'imagination' },
-        on_finish: function (data) {
-            // We explicitly tag a commission error if a response was recorded
-            data.commission_error = data.response !== null;
-        }
-    };
+            // Listens for ANY key press to catch false alarms
+            choices: "ALL_KEYS",
+            // Ensures the trial stays on screen for the full 8 seconds even if a key is pressed
+            response_ends_trial: false,
+            // 8 seconds maximal display
+            trial_duration: 8000,
+            // Tags the trial as a practice trial in the imagination condition
+            data: { task: 'practice', learning_condition: 'imagination' },
+            on_finish: function (data) {
+                // We explicitly tag a commission error if a response was recorded
+                data.commission_error = data.response !== null;
+            }
+        };
 
-    timeline.push(practice_imagination_stimulus);
+        // Adds the practice imagination trial to the timeline
+        timeline.push(practice_imagination_stimulus);
 
-    // Interlude: instructions before the main trials in learning phase
-    const instructionMain = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // INTERLUDE: instructions before the main trials in learning phase
+        const instructionMain = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="slide-arrow">&#10140;</div>
 
         <div class="slide-text">
@@ -923,55 +943,65 @@
             <p><strong>Legyen figyelmes, és ne feledje:<br>a cég biztonsága és a munkája a tét!</strong></p>
         </div>
     `
-    };
+        };
 
-    timeline.push(instructionMain);
+        timeline.push(instructionMain);
 
-    // Main trials in the learning phase
-    learningStimuliWithConditions.forEach(item => {
-        const trialInstruction = item.condition === "action"
-            ? "CSELEKEDJEN!"
-            : "KÉPZELJE EL!";
+        // MAIN TRIALS IN LEARNING PHASE
 
-        const mainTrial = {
-            type: jsPsychHtmlKeyboardResponse,
-            stimulus: `
+        // Loops through every learning stimulus with its assigned condition
+        learningStimuliWithConditions.forEach(item => {
+            // Determines the instruction text based on the condition of the current item
+            const trialInstruction = item.condition === "action"
+                ? "CSELEKEDJEN!"
+                : "KÉPZELJE EL!";
+
+            // Defines the main trial for the current item
+            const mainTrial = {
+                type: jsPsychHtmlKeyboardResponse,
+                stimulus: `
             <div class="trial-container">
                 <div class="trial-header">${trialInstruction}</div>
                 <img src="${item.unsafe}" class="trial-image">
                 <div class="trial-description">${item.description}</div>
             </div>
         `,
-            choices: item.condition === "action"
-                ? [" "]
-                : "ALL_KEYS",
+                // Sets the allowed key responses based on the condition
+                choices: item.condition === "action"
+                    ? [" "]
+                    : "ALL_KEYS",
 
-            response_ends_trial: item.condition === "action"
-                ? true
-                : false,
-            trial_duration: 4000, // 4 seconds maximal display
-            data: {
-                task: "main",
-                learning_condition: item.condition,
-                item_id: item.id,
-                glitch_assigned: item.glitch
-            },
-            on_finish: function (data) {
-                if (item.condition === "action") {
-                    data.missed_response = data.response === null;
-                } else {
-                    data.commission_error = data.response !== null;
+                // Determines whether the trial ends on response based on the condition
+                response_ends_trial: item.condition === "action"
+                    ? true
+                    : false,
+                trial_duration: 8000, // 8 seconds maximal display
+                // Tags the trial with relevant data for later analysis
+                data: {
+                    task: "main",
+                    learning_condition: item.condition,
+                    item_id: item.id,
+                    glitch_assigned: item.glitch
+                },
+                // Records whether the participant missed a response or made a commission error
+                on_finish: function (data) {
+                    if (item.condition === "action") {
+                        data.missed_response = data.response === null;
+                    } else {
+                        data.commission_error = data.response !== null;
+                    }
                 }
-            }
-        };
+            };
 
-        timeline.push(mainTrial);
+            // Adds the main trial for the current item to the timeline
+            timeline.push(mainTrial);
 
-        if (item.condition === "action") {
-            const securedBeforeGlitch = {
-                type: jsPsychHtmlKeyboardResponse,
+            // If the item is in the action condition, we may need to add glitch trials
+            if (item.condition === "action") {
+                const securedBeforeGlitch = {
+                    type: jsPsychHtmlKeyboardResponse,
 
-                stimulus: `
+                    stimulus: `
         <div class="trial-container">
             <div class="trial-header" style="visibility: hidden;">
                 CSELEKEDJEN!
@@ -984,20 +1014,21 @@
             </div>
         </div>
     `,
+                    // No key responses are allowed during this trial
+                    choices: "NO_KEYS",
+                    trial_duration: 800,
 
-                choices: "NO_KEYS",
-                trial_duration: 800,
+                    // Tags the trial with relevant data for later analysis
+                    data: {
+                        task: "secured_before_glitch",
+                        item_id: item.id
+                    }
+                };
+                // Defines the glitch trial used when the participant responded and the item is assigned a glitch
+                const glitchTrial = {
+                    type: jsPsychHtmlKeyboardResponse,
 
-                data: {
-                    task: "secured_before_glitch",
-                    item_id: item.id
-                }
-            };
-
-            const glitchTrial = {
-                type: jsPsychHtmlKeyboardResponse,
-
-                stimulus: `
+                    stimulus: `
         <div class="trial-container">
             <div class="trial-header" style="visibility: hidden;">
                 CSELEKEDJEN!
@@ -1013,21 +1044,24 @@
             </div>
         </div>
     `,
+                    // No key responses are allowed during this trial
+                    choices: "NO_KEYS",
+                    // The glitch effect is shown for a very brief duration
+                    trial_duration: 400,
 
-                choices: "NO_KEYS",
-                trial_duration: 400,
+                    // Tags the trial with relevant data for later analysis
+                    data: {
+                        task: "glitch",
+                        item_id: item.id,
+                        glitch_shown: true
+                    }
+                };
 
-                data: {
-                    task: "glitch",
-                    item_id: item.id,
-                    glitch_shown: true
-                }
-            };
+                // Defines the trial that shows the secured image after the glitch
+                const securedAfterGlitch = {
+                    type: jsPsychHtmlKeyboardResponse,
 
-            const securedAfterGlitch = {
-                type: jsPsychHtmlKeyboardResponse,
-
-                stimulus: `
+                    stimulus: `
         <div class="trial-container">
             <div class="trial-header" style="visibility: hidden;">
                 CSELEKEDJEN!
@@ -1040,39 +1074,42 @@
             </div>
         </div>
     `,
+                    // No key responses are allowed during this trial
+                    choices: "NO_KEYS",
+                    trial_duration: 800,
 
-                choices: "NO_KEYS",
-                trial_duration: 800,
+                    data: {
+                        task: "secured_after_glitch",
+                        item_id: item.id
+                    }
+                };
 
-                data: {
-                    task: "secured_after_glitch",
-                    item_id: item.id
-                }
-            };
+                // Defines a conditional timeline that only shows the glitch sequence if the item is assigned a glitch and the participant responded in the main trial
+                const glitchConditional = {
+                    timeline: [
+                        securedBeforeGlitch,
+                        glitchTrial,
+                        securedAfterGlitch
+                    ],
 
-            const glitchConditional = {
-                timeline: [
-                    securedBeforeGlitch,
-                    glitchTrial,
-                    securedAfterGlitch
-                ],
+                    // The conditional function checks whether the current item is assigned a glitch and whether the participant responded in the main trial
+                    conditional_function: function () {
+                        const mainTrialData = jsPsych.data.get()
+                            .filter({
+                                task: "main",
+                                item_id: item.id
+                            })
+                            .last(1)
+                            .values()[0];
 
-                conditional_function: function () {
-                    const mainTrialData = jsPsych.data.get()
-                        .filter({
-                            task: "main",
-                            item_id: item.id
-                        })
-                        .last(1)
-                        .values()[0];
+                        return item.glitch && mainTrialData.response !== null;
+                    }
+                };
 
-                    return item.glitch && mainTrialData.response !== null;
-                }
-            };
-
-            const mainFeedback = {
-                type: jsPsychHtmlKeyboardResponse,
-                stimulus: `
+                // Defines the secured-image feedback used after a responded, non-glitch action trial
+                const mainFeedback = {
+                    type: jsPsychHtmlKeyboardResponse,
+                    stimulus: `
             <div class="trial-container">
                 <div class="trial-header" style="visibility: hidden;">
                     CSELEKEDJEN!
@@ -1085,50 +1122,51 @@
                 </div>
             </div>
         `,
-                choices: "NO_KEYS",
-                trial_duration: 2000
-            };
+                    choices: "NO_KEYS",
+                    trial_duration: 2000
+                };
 
-            const mainFeedbackConditional = {
-                timeline: [mainFeedback],
+                // Defines a conditional timeline that only shows the main feedback if the participant responded in the main trial and the item is not assigned a glitch
+                const mainFeedbackConditional = {
+                    timeline: [mainFeedback],
 
-                conditional_function: function () {
-                    const mainTrialData = jsPsych.data.get()
-                        .filter({
-                            task: "main",
-                            item_id: item.id
-                        })
-                        .last(1)
-                        .values()[0];
+                    conditional_function: function () {
+                        const mainTrialData = jsPsych.data.get()
+                            .filter({
+                                task: "main",
+                                item_id: item.id
+                            })
+                            .last(1)
+                            .values()[0];
 
-                    return !item.glitch && mainTrialData.response !== null;
-                }
-            };
+                        return !item.glitch && mainTrialData.response !== null;
+                    }
+                };
 
-            timeline.push(glitchConditional, mainFeedbackConditional);
-        }
+                timeline.push(glitchConditional, mainFeedbackConditional);
+            }
 
-    });
+        });
 
-    // End of learning phase
-    const learningEnd = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        // End of learning phase
+        const learningEnd = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="slide-arrow">&#10140;</div>
 
         <div class="slide-text">
             <p>A terület biztosítva.</p>
         </div>
     `
-    };
+        };
 
-    timeline.push(learningEnd);
+        timeline.push(learningEnd);
 
-    // Test phase
+        // TEST PHASE
 
-    const instructionTestPhase = {
-        type: jsPsychHtmlKeyboardResponse,
-        stimulus: `
+        const instructionTestPhase = {
+            type: jsPsychHtmlKeyboardResponse,
+            stimulus: `
         <div class="slide-arrow">&#10140;</div>
 
         <div class="slide-text">
@@ -1136,15 +1174,16 @@
             <p>A főnöke behívta az irodába, hogy néhány kérdést tegyen fel Önnek<br>az előző esti munkájával kapcsolatban.</p>
         </div>
     `
-    };
+        };
 
-    timeline.push(instructionTestPhase);
+        timeline.push(instructionTestPhase);
 
-    testStimuli.forEach(item => {
+        // Loops through every stimulus in the test phase
+        testStimuli.forEach(item => {
 
-        const recognitionTrial = {
-            type: jsPsychHtmlKeyboardResponse,
-            stimulus: `
+            const recognitionTrial = {
+                type: jsPsychHtmlKeyboardResponse,
+                stimulus: `
             <div class="trial-container">
                 <div class="trial-header">Látta ezt?</div>
 
@@ -1158,36 +1197,40 @@
 
                     <div class="test-response-option">
                         Ha <strong>IGEN</strong>,<br>
-                        nyomja meg az <strong>1</strong> billentyűt
+                        nyomja meg az <strong>1</strong> billentyűt!
                     </div>
                 </div>
             </div>
         `,
-            choices: ["0", "1"],
-            data: {
-                task: "test",
-                question: "recognition",
-                item_id: item.id,
-                memory_status: item.memory_status,
-                learning_condition: item.condition ?? "not_presented",
-                glitch_assigned: item.glitch ?? false,
-                correct_response: item.memory_status === "old" ? "1" : "0",
-            },
-            on_finish: function (data) {
-                data.correct = data.response === data.correct_response;
+                // Defines the allowed key responses for the recognition trial
+                choices: ["0", "1"],
+                // Tags the trial with relevant data for later analysis
+                data: {
+                    task: "test",
+                    question: "recognition",
+                    item_id: item.id,
+                    memory_status: item.memory_status,
+                    learning_condition: item.condition ?? "not_presented",
+                    glitch_assigned: item.glitch ?? false,
+                    correct_response: item.memory_status === "old" ? "1" : "0",
+                },
+                // Determines whether the participant's response was correct, a false alarm, or a miss
+                on_finish: function (data) {
+                    data.correct = data.response === data.correct_response;
 
-                data.false_alarm =
-                    data.memory_status === "lure" && data.response === "1";
+                    data.false_alarm =
+                        data.memory_status === "lure" && data.response === "1";
 
-                data.miss =
-                    data.memory_status === "old" && data.response === "0";
-            }
-        };
+                    data.miss =
+                        data.memory_status === "old" && data.response === "0";
+                }
+            };
 
-        const recognitionConfidenceTrial = {
-            type: jsPsychHtmlSliderResponse,
+            // Defines the confidence rating trial for the recognition response
+            const recognitionConfidenceTrial = {
+                type: jsPsychHtmlSliderResponse,
 
-            stimulus: `
+                stimulus: `
             <div class="trial-container confidence-container">
             <div class="trial-header">Mennyire biztos ebben?</div>
 
@@ -1195,33 +1238,38 @@
         </div>
     `,
 
-            min: 0,
-            max: 100,
-            slider_start: 50,
-            step: 1,
+                // Defines the properties of the confidence slider
+                min: 0,
+                max: 100,
+                slider_start: 50,
+                step: 1,
 
-            labels: [
-                "egyáltalán nem",
-                "teljesen"
-            ],
+                // Defines the labels for the confidence slider
+                labels: [
+                    "egyáltalán nem",
+                    "teljesen"
+                ],
 
-            require_movement: true,
-            button_label: "Tovább",
+                // Requires the participant to move the slider before proceeding
+                require_movement: true,
+                button_label: "Tovább",
 
-            data: {
-                task: "test",
-                question: "recognition_confidence",
-                item_id: item.id,
-                memory_status: item.memory_status,
-                learning_condition: item.condition ?? "not_presented",
-                glitch_assigned: item.glitch ?? false
-            }
-        };
+                // Tags the trial with relevant data for later analysis
+                data: {
+                    task: "test",
+                    question: "recognition_confidence",
+                    item_id: item.id,
+                    memory_status: item.memory_status,
+                    learning_condition: item.condition ?? "not_presented",
+                    glitch_assigned: item.glitch ?? false
+                }
+            };
 
-        const sourceTrial = {
-            type: jsPsychHtmlKeyboardResponse,
+            // Defines the source memory trial that asks participants to recall the condition under which they saw the item
+            const sourceTrial = {
+                type: jsPsychHtmlKeyboardResponse,
 
-            stimulus: `
+                stimulus: `
         <div class="trial-container">
             <div class="trial-header">
                 Ha látta, akkor mi történt vele?
@@ -1243,33 +1291,33 @@
         </div>
     `,
 
-            choices: ["0", "1"],
+                choices: ["0", "1"],
 
-            data: {
-                task: "test",
-                question: "source",
-                item_id: item.id,
-                memory_status: item.memory_status,
-                learning_condition: item.condition ?? "not_presented",
-                glitch_assigned: item.glitch ?? false,
-                correct_response:
-                    item.memory_status === "old"
-                        ? (item.condition === "action" ? "0" : "1")
-                        : null
-            },
+                data: {
+                    task: "test",
+                    question: "source",
+                    item_id: item.id,
+                    memory_status: item.memory_status,
+                    learning_condition: item.condition ?? "not_presented",
+                    glitch_assigned: item.glitch ?? false,
+                    correct_response:
+                        item.memory_status === "old"
+                            ? (item.condition === "action" ? "0" : "1")
+                            : null
+                },
 
-            on_finish: function (data) {
-                data.correct =
-                    data.correct_response === null
-                        ? null
-                        : data.response === data.correct_response;
-            }
-        };
+                on_finish: function (data) {
+                    data.correct =
+                        data.correct_response === null
+                            ? null
+                            : data.response === data.correct_response;
+                }
+            };
 
-        const sourceConfidenceTrial = {
-            type: jsPsychHtmlSliderResponse,
+            const sourceConfidenceTrial = {
+                type: jsPsychHtmlSliderResponse,
 
-            stimulus: `
+                stimulus: `
         <div class="trial-container confidence-container">
             <div class="trial-header">Mennyire biztos ebben?</div>
 
@@ -1277,56 +1325,57 @@
         </div>
     `,
 
-            min: 0,
-            max: 100,
-            slider_start: 50,
-            step: 1,
+                min: 0,
+                max: 100,
+                slider_start: 50,
+                step: 1,
 
-            labels: [
-                "egyáltalán nem",
-                "teljesen"
-            ],
+                labels: [
+                    "egyáltalán nem",
+                    "teljesen"
+                ],
 
-            require_movement: true,
-            button_label: "Tovább",
+                require_movement: true,
+                button_label: "Tovább",
 
-            data: {
-                task: "test",
-                question: "source_confidence",
-                item_id: item.id,
-                memory_status: item.memory_status,
-                learning_condition: item.condition ?? "not_presented",
-                glitch_assigned: item.glitch ?? false
-            }
-        };
+                data: {
+                    task: "test",
+                    question: "source_confidence",
+                    item_id: item.id,
+                    memory_status: item.memory_status,
+                    learning_condition: item.condition ?? "not_presented",
+                    glitch_assigned: item.glitch ?? false
+                }
+            };
 
-        const sourceConditional = {
-            timeline: [sourceTrial, sourceConfidenceTrial],
+            const sourceConditional = {
+                timeline: [sourceTrial, sourceConfidenceTrial],
 
-            conditional_function: function () {
-                const recognitionData = jsPsych.data.get()
-                    .filter({
-                        task: "test",
-                        question: "recognition",
-                        item_id: item.id
-                    })
-                    .last(1)
-                    .values()[0];
+                conditional_function: function () {
+                    const recognitionData = jsPsych.data.get()
+                        .filter({
+                            task: "test",
+                            question: "recognition",
+                            item_id: item.id
+                        })
+                        .last(1)
+                        .values()[0];
 
-                return recognitionData.response === "1";
-            }
-        };
+                    return recognitionData.response === "1";
+                }
+            };
 
-        timeline.push(recognitionTrial);
-        timeline.push(recognitionConfidenceTrial);
-        timeline.push(sourceConditional);
-    });
+            // Adds the recognition trial, confidence rating, and conditional source memory trials to the timeline
+            timeline.push(recognitionTrial);
+            timeline.push(recognitionConfidenceTrial);
+            timeline.push(sourceConditional);
+        });
 
-    // End of the experiment
-    const experimentEnd = {
-        type: jsPsychHtmlKeyboardResponse,
+        // End of the experiment
+        const experimentEnd = {
+            type: jsPsychHtmlKeyboardResponse,
 
-        stimulus: `
+            stimulus: `
         <div class="slide-arrow">&#10140;</div>
 
         <div class="slide-text">
@@ -1336,12 +1385,14 @@
             <p><strong>Nyomja meg bármelyik billentyűt a befejezéshez.</strong></p>
         </div>
     `
-    };
+        };
 
-    timeline.push(experimentEnd);
+        timeline.push(experimentEnd);
 
-    // Run the experiment
-    jsPsych.run(timeline);
-</script>
+        // Run the experiment
+        jsPsych.run(timeline);
+    </script>
+
+</body>
 
 </html>
