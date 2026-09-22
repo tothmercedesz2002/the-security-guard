@@ -11,6 +11,7 @@
 <head>
     <!-- Title of the experiment that will be displayed on the browser tab -->
     <title>The Security Guard Task</title>
+
     <!-- Loading the core jsPsych library that runs the experiment and stores its data -->
     <script src="https://unpkg.com/jspsych@7.3.4"></script>
     <!-- Loading jsPsych's default visual styles -->
@@ -295,8 +296,34 @@
                 const fileName =
                     `security_guard_${safeParticipantId}_${timestamp}.csv`;
 
-                // Triggers a local browser download of the cleaned dataset as a CSV file (local download for now, but can be changed to server upload later)
-                analysisData.localSave("csv", fileName);
+                // Saves to JATOS during a study run, or downloads a CSV in demo mode
+                if (isJatos) {
+                    function saveToJatos() {
+                        // Shows a message while the upload is in progress
+                        document.body.innerHTML =
+                            "<p>Adatok mentése… Kérjük, ne zárja be az oldalt.</p>";
+
+                        jatos.submitResultData(analysisData.csv())
+                            .then(function () {
+                                // Ends the study only after the server confirms the upload
+                                jatos.endStudy();
+                            })
+                            .catch(function (error) {
+                                console.error("JATOS save failed:", error);
+
+                                // Offers another attempt without restarting the task
+                                document.body.innerHTML =
+                                    "<p>Az adatok mentése nem sikerült.</p>" +
+                                    '<button id="retry-save" type="button">Mentés újrapróbálása</button>';
+
+                                document.getElementById("retry-save").onclick = saveToJatos;
+                            });
+                    }
+
+                    saveToJatos();
+                } else {
+                    analysisData.localSave("csv", fileName);
+                }
 
             }
         });
@@ -304,8 +331,8 @@
         // Creates an empty timeline that will hold all the trials and instructions
         const timeline = [];
 
-        // Reads the participant ID from the page URL (later: Qualtrics integration) or uses TEST_LOCAL when no ID is provided
-        const participantId =
+        // Reads the ID for demo runs; JATOS updates it after initialization
+        let participantId =
             jsPsych.data.getURLVariable("participant_id") || "TEST_LOCAL";
 
         // Adds the same participant and session information to every trial's data row
@@ -1389,8 +1416,51 @@
 
         timeline.push(experimentEnd);
 
-        // Run the experiment
-        jsPsych.run(timeline);
+        // Detects a JATOS run using its standard URL path
+        const isJatos = window.location.pathname.includes("/publix/");
+
+        if (isJatos) {
+            // Creates a script element to load the JATOS library
+            const jatosScript = document.createElement("script");
+            jatosScript.src = "jatos.js";
+
+            // Waits for the library to load and JATOS to initialize + ID reading before starting the experiment
+            jatosScript.onload = function () {
+                jatos.onLoad(function () {
+                    // Reads the participant ID from the original JATOS study link
+                    participantId = String(
+                        jatos.urlQueryParameters.participant_id ?? ""
+                    ).trim();
+
+                    // Prevents a JATOS run from starting without a participant ID
+                    if (!participantId) {
+                        document.body.textContent =
+                            "Hiányzik a résztvevői azonosító. Kérjük, a kérdőívben kapott linken indítsa el a feladatot.";
+                        return;
+                    }
+
+                    // Updates the participant ID before the first trial starts
+                    jsPsych.data.addProperties({
+                        participant_id: participantId
+                    });
+
+                    jsPsych.run(timeline);
+                });
+            };
+
+            // Shows an error if the JATOS library cannot be loaded
+            jatosScript.onerror = function () {
+                document.body.textContent =
+                    "A feladat betöltése nem sikerült. Kérjük, nyissa meg újra a kapott linket.";
+            };
+
+            // Adds the script to the page's head and starts loading it
+            document.head.appendChild(jatosScript);
+        } else {
+            // Starts the experiment directly on GitHub Pages or locally
+            jsPsych.run(timeline);
+        }
+
     </script>
 
 </body>
