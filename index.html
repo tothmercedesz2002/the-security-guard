@@ -890,8 +890,8 @@
         `,
             // Only responds to the SPACE bar
             choices: [' '],
-            // 8 seconds maximal display
-            trial_duration: 8000,
+            // 12 seconds maximal display
+            trial_duration: 12000,
             // Tags the trial as a practice trial in the action condition
             data: { task: 'practice', learning_condition: 'action' },
             // Records whether the participant missed the response
@@ -913,7 +913,7 @@
         `,
             // No key responses are allowed during feedback
             choices: "NO_KEYS",
-            trial_duration: 2000 // shows the secured door for 2 seconds
+            trial_duration: 6000 // shows the secured door for 6 seconds
         };
 
         // Conditional trial that only shows feedback if the participant responded in the practice action trial
@@ -944,10 +944,10 @@
         `,
             // Listens for ANY key press to catch false alarms
             choices: "ALL_KEYS",
-            // Ensures the trial stays on screen for the full 8 seconds even if a key is pressed
+            // Ensures the trial stays on screen for the full 12 seconds even if a key is pressed
             response_ends_trial: false,
-            // 8 seconds maximal display
-            trial_duration: 8000,
+            // 12 seconds maximal display
+            trial_duration: 12000,
             // Tags the trial as a practice trial in the imagination condition
             data: { task: 'practice', learning_condition: 'imagination' },
             on_finish: function (data) {
@@ -1002,7 +1002,7 @@
                 response_ends_trial: item.condition === "action"
                     ? true
                     : false,
-                trial_duration: 8000, // 8 seconds maximal display
+                trial_duration: 12000, // 12 seconds maximal display
                 // Tags the trial with relevant data for later analysis
                 data: {
                     task: "main",
@@ -1043,7 +1043,7 @@
     `,
                     // No key responses are allowed during this trial
                     choices: "NO_KEYS",
-                    trial_duration: 800,
+                    trial_duration: 2000,
 
                     // Tags the trial with relevant data for later analysis
                     data: {
@@ -1073,8 +1073,8 @@
     `,
                     // No key responses are allowed during this trial
                     choices: "NO_KEYS",
-                    // The glitch effect is shown for a very brief duration
-                    trial_duration: 400,
+                    // Shows the unsafe image with the glitch overlay for 2 seconds
+                    trial_duration: 2000,
 
                     // Tags the trial with relevant data for later analysis
                     data: {
@@ -1103,7 +1103,7 @@
     `,
                     // No key responses are allowed during this trial
                     choices: "NO_KEYS",
-                    trial_duration: 800,
+                    trial_duration: 2000,
 
                     data: {
                         task: "secured_after_glitch",
@@ -1150,7 +1150,7 @@
             </div>
         `,
                     choices: "NO_KEYS",
-                    trial_duration: 2000
+                    trial_duration: 6000
                 };
 
                 // Defines a conditional timeline that only shows the main feedback if the participant responded in the main trial and the item is not assigned a glitch
