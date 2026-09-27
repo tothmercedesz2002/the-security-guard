@@ -22,6 +22,8 @@
     <script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.3"></script>
     <!-- Displays a response slider -->
     <script src="https://unpkg.com/@jspsych/plugin-html-slider-response@1.1.3"></script>
+    <!-- Loads the plugin for entering and exiting fullscreen mode -->
+    <script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.2.1"></script>
     <!-- Loads the image-preloading plugin used to prevent delays during the task -->
     <script src="https://unpkg.com/@jspsych/plugin-preload@1.1.3"></script>
 
@@ -791,6 +793,18 @@
         };
         // Adds the preload trial as the first element of the timeline
         timeline.push(preload);
+
+        // Requests fullscreen after preloading and before the instructions
+        const enterFullscreen = {
+            type: jsPsychFullscreen,
+            fullscreen_mode: true,
+            message: "<p>Kérjük, a feladatot teljes képernyős módban végezze el.</p>",
+            button_label: "Teljes képernyő indítása",
+            // Waits 1 second after switching before showing the instructions
+            delay_after: 1000
+        };
+
+        timeline.push(enterFullscreen);
 
         // BASIC INSTRUCTIONS
 
