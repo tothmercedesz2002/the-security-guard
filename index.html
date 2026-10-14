@@ -231,6 +231,28 @@
                 opacity: 0.2;
             }
         }
+
+        /* Keeps a dedicated instruction row above learning and feedback images */
+        .learning-image-screen {
+            display: grid;
+            grid-template-areas:
+                "instruction"
+                "image";
+            grid-template-rows: 1.5em auto;
+            gap: 20px;
+            justify-items: center;
+            width: 100%;
+            font-size: 34px;
+        }
+
+        .learning-image-screen>.trial-header {
+            grid-area: instruction;
+        }
+
+        .learning-image-screen>.trial-image,
+        .learning-image-screen>.glitch-image-wrapper {
+            grid-area: image;
+        }
     </style>
 
 </head>
@@ -243,8 +265,105 @@
 
     <script>
 
-        // SETUP
+        // SETTINGS
+        // EXPERIMENTAL PROPORTIONS AND DURATIONS (ms)
+        const SETTINGS = {
+            // The learning-item count must be even for the 50/50 condition split
+            learningProportion: 0.8,
+            glitchProportion: 0.25,
 
+            descriptionMs: 12000,
+            imaginationMs: 12000,
+            feedbackMs: 6000,
+
+            beforeGlitchMs: 2000,
+            glitchMs: 2000,
+            afterGlitchMs: 2000,
+
+            fullscreenDelayMs: 1000
+        };
+
+        // SCREEN BUILDERS
+        // Creates a description-only screen that advances automatically after 12 seconds
+        function createDescriptionTrial(description, data) {
+            return {
+                type: jsPsychHtmlKeyboardResponse,
+
+                stimulus: `
+            <div class="trial-container">
+                <div class="trial-description">${description}</div>
+            </div>
+        `,
+
+                choices: "NO_KEYS",
+                trial_duration: SETTINGS.descriptionMs,
+                data: data
+            };
+        }
+
+        // Builds a learning or feedback screen without hidden placeholder text
+        function createImageHTML({
+            image,
+            instruction = "",
+            glitch = false
+        }) {
+            const instructionHTML = instruction
+                ? `<div class="trial-header">${instruction}</div>`
+                : "";
+
+            const imageHTML = glitch
+                ? `
+            <div class="glitch-image-wrapper">
+                <img src="${image}" class="trial-image">
+                <img src="img/glitch.png" class="glitch-overlay">
+            </div>
+        `
+                : `<img src="${image}" class="trial-image">`;
+
+            return `
+        <div class="learning-image-screen">
+            ${instructionHTML}
+            ${imageHTML}
+        </div>
+    `;
+        }
+
+        // Creates a confidence-rating trial for the specified item and question
+        function createConfidenceTrial(item, question) {
+            return {
+                type: jsPsychHtmlSliderResponse,
+
+                stimulus: `
+            <div class="trial-container confidence-container">
+                <div class="trial-header">Mennyire biztos ebben?</div>
+                <img src="${item.unsafe}" class="trial-image">
+            </div>
+        `,
+
+                // Uses the same confidence scale for recognition and source judgments
+                min: 0,
+                max: 100,
+                slider_start: 50,
+                step: 1,
+                labels: ["egyáltalán nem", "teljesen"],
+
+                // Requires slider interaction before continuing
+                require_movement: true,
+                button_label: "Tovább",
+
+                // Preserves the existing analysis variables and question labels
+                data: {
+                    task: "test",
+                    question: question,
+                    item_id: item.id,
+                    memory_status: item.memory_status,
+                    learning_condition: item.condition ?? "not_presented",
+                    glitch_assigned: item.glitch ?? false
+                }
+            };
+        }
+
+        // INITIALIZATION AND DATA SAVING
         // Initializes jsPsych, which will control the experiment and store its data
         const jsPsych = initJsPsych({
             // Runs this function automatically after the entire experiment has finished
@@ -345,12 +464,12 @@
             session_start: new Date().toISOString()
         });
 
-        // Defining the complete set of main stimuli
-        // Each stimulus is stored as an object with four properties:
-        // id: unique identifier of the stimulus
-        // unsafe: file path of the unsafe image
-        // description: possible negative consequence if the situation remains unsafe
-        // secured: file path of the secured image
+        // STIMULUS DATA
+        // Main stimulus fields:
+        // id: unique stimulus identifier
+        // unsafe: unsafe-image path
+        // description: situation and its possible negative consequence
+        // secured: secured-image path
         const mainStimuli = [
             // 1
             {
@@ -405,7 +524,7 @@
             {
                 id: "blood",
                 unsafe: "img/blood_unsafe.png",
-                description: "Valaki egy véres zsebkendőt az asztalán felejtett.<br>Ha nem dobja ki, HIV-vel fertőzhet meg valakit.",
+                description: "Valaki egy véres zsebkendőt az asztalán felejtett.<br>Ha nem dobja ki, HIV-vel fertőződhet meg valaki.",
                 secured: "img/blood_secured.png"
             },
             // 9
@@ -704,11 +823,21 @@
             }
         ];
 
+        // Defines the text and image paths for the practice trial
+        const practiceStimulus = {
+            description: "Valaki nyitva hagyott egy ajtót.<br>Ha nem zárja be, a szobából ellophatják a pénzt.",
+            unsafe: "img/practice_door_unsafe.png",
+            secured: "img/practice_door_secured.png"
+        };
+
+        // RANDOMIZATION
         // Creates a randomly shuffled copy of the complete stimulus list for the current participant
         const shuffledStimuli = jsPsych.randomization.shuffle([...mainStimuli]);
 
         // Sets how many stimuli will appear during the learning phase (all remaining stimuli will become lures in the test phase) - 20% should be lures, so 80% of the stimuli are used for learning
-        const numberOfLearningItems = Math.round(mainStimuli.length * 0.8);
+        const numberOfLearningItems = Math.round(
+            mainStimuli.length * SETTINGS.learningProportion
+        );
 
         // Selects the required number of stimuli from the randomized list for learning
         const learningStimuli = shuffledStimuli.slice(0, numberOfLearningItems);
@@ -735,9 +864,6 @@
             condition: learningConditions[index]
         }));
 
-        // Sets the proportion of action items that will be assigned a glitch (25%)
-        const glitchProportion = 0.25;
-
         // Creates a new list containing only the learning stimuli assigned to the action condition
         const actionStimuli = learningStimuliWithConditions
             // Keeps an item only when its condition is exactly "action"
@@ -746,7 +872,7 @@
         // Calculates how many action stimuli should receive a glitch
         // Rounds the result to the nearest whole number
         const numberOfGlitchItems = Math.round(
-            actionStimuli.length * glitchProportion
+            actionStimuli.length * SETTINGS.glitchProportion
         );
 
         // Randomly selects the required number of unique action-item IDs for the glitch condition
@@ -778,14 +904,15 @@
             }))
         ]);
 
+        // PRELOADING AND FULLSCREEN
         // Defines a preload trial so images are ready before the task screens begin
         const preload = {
             // Uses the jsPsych image-preloading plugin
             type: jsPsychPreload,
             // Lists every image file that should be loaded
             images: [
-                'img/practice_door_unsafe.png',
-                'img/practice_door_secured.png',
+                practiceStimulus.unsafe,
+                practiceStimulus.secured,
                 'img/glitch.png',
                 // Adds the unsafe and secured image path of every main stimulus
                 ...mainStimuli.flatMap(item => [item.unsafe, item.secured])
@@ -801,13 +928,12 @@
             message: "<p>Kérjük, a feladatot teljes képernyős módban végezze el.</p>",
             button_label: "Teljes képernyő indítása",
             // Waits 1 second after switching before showing the instructions
-            delay_after: 1000
+            delay_after: SETTINGS.fullscreenDelayMs,
         };
 
         timeline.push(enterFullscreen);
 
         // BASIC INSTRUCTIONS
-
         // Defining the first instruction screen
         const instruction1 = {
             // Uses the jsPsych HTML keyboard response plugin to display instructions and wait for a key press
@@ -819,10 +945,9 @@
         <div class="slide-text">
             <p>Kedves Résztvevő!</p>
             
-            <p>Ebben a feladatban egy éjszakai műszakban dolgozó <strong>biztonsági őrt</strong> fog alakítani.<br>
-            A feladata az, hogy <strong>ellenőrizze és tegye biztonságossá</strong> a területet,<br>
-            mielőtt elhagyja azt.</p>
-            
+            <p>Ebben a feladatban egy éjszakai műszakban dolgozó <strong>biztonsági őrt</strong> fog alakítani.</p>
+            <p>A feladata, hogy <strong>ellenőrizze és tegye biztonságossá</strong> a területet, mielőtt hazamegy.</p>
+            <p>A munkáját mindig komolyan veszi, 10 éve dolgozik ennél a cégnél.<br>Ha hibázna és kirúgnák, nagyon megviselné.</p>
             <p>Nyomja meg bármelyik billentyűt a továbbhaladáshoz.</p>
         </div>
         `
@@ -837,8 +962,10 @@
         <div class="slide-arrow">&#10140;</div> 
         
         <div class="slide-text">
-            <p>Különböző helyzeteket fog látni képeken,<br> valamint egy rövid utasítást arról, hogy mit kell tennie.</p>
-            <p><strong>Kétféle feladata lehet:</strong></p>
+            <p>A próbáknál először egy potenciálisan veszélyes helyzet leírását fogja látni.<strong> <br>Figyelmesen olvassa el.</strong><br>Nem kell semmit megnyomnia, a leírás után automatikusan vált majd a feladat.</p>
+            <p>A leírások után egy képet fog látni egy veszélyes helyzetről, <br>amihez a leírás kapcsolódik.</p>
+            <p>A képpel együtt fog megjelenni egy utasítás a képernyő tetején, ami <br><strong>“CSELEKEDJEN!”</strong> vagy <strong>“KÉPZELJE EL!”</strong> lesz.</p>
+            <p>A kétféle felirat részletes leírását a következő oldalakon találja:</p>
         </div>
       `
         };
@@ -851,11 +978,10 @@
         <div class="slide-arrow">&#10140;</div>
 
         <div class="slide-text">
-            <p><strong>CSELEKEDJEN!</strong></p>
+            <p><strong>1. CSELEKEDJEN!</strong></p>
             <p>Ebben a feladatban <strong>Önnek kell biztonságossá tenni</strong> a helyzetet<br> a <strong>SPACE-billentyű</strong> megnyomásával.</p>
-            <p>Példa: Megjelenik egy nyitott ajtó.<br> Ha a <strong>képernyő tetején</strong> azt látja, hogy <strong>“CSELEKEDJEN!”</strong>,<br> akkor nyomja meg a SPACE-billentyűt.</p>
+            <p>Példa: A helyzetleírás után a képen megjelenik egy nyitva felejtett ajtó.<br> Ha a <strong>képernyő tetején</strong> azt látja, hogy <strong>“CSELEKEDJEN!”</strong>,<br> akkor nyomja meg a SPACE-billentyűt.</p>
             <p>A gombnyomás után a kép megváltozik,<br> és látni fogja, hogy a helyzet biztonságossá vált<br> (pl. bezárul az ajtó).</p>
-            <p>Reagáljon <strong>gyorsan és pontosan</strong>, mert a képek csak egy rövid ideig lesznek láthatóak!</p>
        </div>
        `
         };
@@ -868,9 +994,9 @@
         <div class="slide-arrow">&#10140;</div>
 
         <div class="slide-text">
-            <p><strong>KÉPZELJE EL!</strong></p>
+            <p><strong>2. KÉPZELJE EL!</strong></p>
             <p>Ha a <strong>képernyő tetején</strong> azt látja, hogy <strong>“KÉPZELJE EL!”</strong>,<br> akkor <strong>nem szabad gombot nyomnia</strong>.</p>
-            <p>A feladata az, hogy <strong>képzelje el élénken és részletesen</strong>,<br> hogy Ön biztosítja a helyzetet.</p>
+            <p>A feladata az, hogy <strong>képzelje el élénken és részletesen</strong>,<br> hogy Ön teszi biztonságossá a helyzetet.</p>
             <p>Példa: ha a nyitott ajtót látja, képzelje el, hogy bezárja az ajtót.<br> A kép egy <strong>rövid ideig lesz látható</strong>,<br> majd a feladat <strong>magától továbbhalad</strong>.</p>
       </div>
       `
@@ -887,25 +1013,30 @@
         
         <div class="slide-text">
             <p>Most egy kis gyakorlás következik.</p>
+            <p>Először a "CSELEKEDJEN!", majd egyből utána a <br>"KÉPZELJE EL!" feladatot fogja kipróbálni.</p>
+            <p>Egy helyzetleírást fog látni pár másodpercig, <br>majd egy képet egy nyitva felejtett ajtóról.</p>
+            <p><strong>Az utasításnak megfelelően cselekedjen vagy képzelje el a cselekvést.</strong></p>
             </div>
       `
         };
         timeline.push(instructionPractice);
 
+        // Creates the description screen used before both practice images
+        const practiceDescriptionTrial = createDescriptionTrial(
+            practiceStimulus.description,
+            { task: "practice_description" }
+        );
+
         // Practice trial 1 - action
-        const practice_action_stimulus = {
+        const practiceActionTrial = {
             type: jsPsychHtmlKeyboardResponse,
-            stimulus: `
-        <div class="trial-container">
-            <div class="trial-header header-action">CSELEKEDJEN!</div>
-            <img src="img/practice_door_unsafe.png" class="trial-image">
-            <div class="trial-description">Valaki nyitva hagyott egy ajtót.<br>Ha nem zárja be, a szobából ellophatják a pénzt.</div>
-        </div>
-        `,
+            // Uses the createImageHTML function to generate the HTML for the practice action trial
+            stimulus: createImageHTML({
+                image: practiceStimulus.unsafe,
+                instruction: "CSELEKEDJEN!"
+            }),
             // Only responds to the SPACE bar
             choices: [' '],
-            // 12 seconds maximal display
-            trial_duration: 12000,
             // Tags the trial as a practice trial in the action condition
             data: { task: 'practice', learning_condition: 'action' },
             // Records whether the participant missed the response
@@ -916,24 +1047,21 @@
         };
 
         // Feedback trial for the practice action trial
-        const practice_action_feedback = {
+        const practiceActionFeedback = {
             type: jsPsychHtmlKeyboardResponse,
-            stimulus: `
-        <div class="trial-container">
-            <div class="trial-header header-action" style="visibility: hidden;">CSELEKEDJEN!</div>
-            <img src="img/practice_door_secured.png" class="trial-image">
-            <div class="trial-description" style="visibility: hidden;">Placeholder to keep layout stable</div>
-        </div>
-        `,
+            // Uses the createImageHTML function to generate the HTML for the feedback trial
+            stimulus: createImageHTML({
+                image: practiceStimulus.secured
+            }),
             // No key responses are allowed during feedback
             choices: "NO_KEYS",
-            trial_duration: 6000 // shows the secured door for 6 seconds
+            trial_duration: SETTINGS.feedbackMs,
         };
 
         // Conditional trial that only shows feedback if the participant responded in the practice action trial
-        const practice_action_conditional = {
+        const practiceActionFeedbackConditional = {
             // Uses a conditional timeline to determine whether to show feedback
-            timeline: [practice_action_feedback],
+            timeline: [practiceActionFeedback],
             // The function checks the data from the previous trial to decide whether to show feedback
             conditional_function: function () {
                 // Get the data from the immediately preceding trial
@@ -943,25 +1071,27 @@
             }
         };
 
-        // Adds the practice action trial and its conditional feedback to the timeline
-        timeline.push(practice_action_stimulus, practice_action_conditional);
+        // Shows the description, then the action image and its conditional feedback
+        timeline.push(
+            practiceDescriptionTrial,
+            practiceActionTrial,
+            practiceActionFeedbackConditional
+        );
 
         // Practice trial 2 - imagination
-        const practice_imagination_stimulus = {
+        const practiceImaginationStimulus = {
             type: jsPsychHtmlKeyboardResponse,
-            stimulus: `
-        <div class="trial-container">
-            <div class="trial-header header-imagine">KÉPZELJE EL!</div>
-            <img src="img/practice_door_unsafe.png" class="trial-image">
-            <div class="trial-description">Valaki nyitva hagyott egy ajtót.<br>Ha nem zárja be, a szobából ellophatják a pénzt.</div>
-        </div>
-        `,
+            // Uses the createImageHTML function to generate the HTML for the practice imagination trial
+            stimulus: createImageHTML({
+                image: practiceStimulus.unsafe,
+                instruction: "KÉPZELJE EL!"
+            }),
             // Listens for ANY key press to catch false alarms
             choices: "ALL_KEYS",
             // Ensures the trial stays on screen for the full 12 seconds even if a key is pressed
             response_ends_trial: false,
             // 12 seconds maximal display
-            trial_duration: 12000,
+            trial_duration: SETTINGS.imaginationMs,
             // Tags the trial as a practice trial in the imagination condition
             data: { task: 'practice', learning_condition: 'imagination' },
             on_finish: function (data) {
@@ -970,8 +1100,8 @@
             }
         };
 
-        // Adds the practice imagination trial to the timeline
-        timeline.push(practice_imagination_stimulus);
+        // Shows the description, then the imagination image
+        timeline.push(practiceDescriptionTrial, practiceImaginationStimulus);
 
         // INTERLUDE: instructions before the main trials in learning phase
         const instructionMain = {
@@ -997,16 +1127,19 @@
                 ? "CSELEKEDJEN!"
                 : "KÉPZELJE EL!";
 
+            // Creates the description screen for the current learning item
+            const descriptionTrial = createDescriptionTrial(item.description, {
+                task: "description",
+                item_id: item.id
+            });
+
             // Defines the main trial for the current item
             const mainTrial = {
                 type: jsPsychHtmlKeyboardResponse,
-                stimulus: `
-            <div class="trial-container">
-                <div class="trial-header">${trialInstruction}</div>
-                <img src="${item.unsafe}" class="trial-image">
-                <div class="trial-description">${item.description}</div>
-            </div>
-        `,
+                stimulus: createImageHTML({
+                    image: item.unsafe,
+                    instruction: trialInstruction
+                }),
                 // Sets the allowed key responses based on the condition
                 choices: item.condition === "action"
                     ? [" "]
@@ -1016,7 +1149,8 @@
                 response_ends_trial: item.condition === "action"
                     ? true
                     : false,
-                trial_duration: 12000, // 12 seconds maximal display
+                // Sets the trial duration based on the condition (12 seconds for imagination, no limit for action)
+                trial_duration: item.condition === "action" ? null : SETTINGS.imaginationMs,
                 // Tags the trial with relevant data for later analysis
                 data: {
                     task: "main",
@@ -1034,30 +1168,20 @@
                 }
             };
 
-            // Adds the main trial for the current item to the timeline
-            timeline.push(mainTrial);
+            // Shows the description first, followed by the image and its action/imagination instruction
+            timeline.push(descriptionTrial, mainTrial);
 
             // If the item is in the action condition, we may need to add glitch trials
             if (item.condition === "action") {
                 const securedBeforeGlitch = {
                     type: jsPsychHtmlKeyboardResponse,
-
-                    stimulus: `
-        <div class="trial-container">
-            <div class="trial-header" style="visibility: hidden;">
-                CSELEKEDJEN!
-            </div>
-
-            <img src="${item.secured}" class="trial-image">
-
-            <div class="trial-description" style="visibility: hidden;">
-                ${item.description}
-            </div>
-        </div>
-    `,
+                    // Shows the secured image before the glitch, but only if the participant responded in the main trial
+                    stimulus: createImageHTML({
+                        image: item.secured
+                    }),
                     // No key responses are allowed during this trial
                     choices: "NO_KEYS",
-                    trial_duration: 2000,
+                    trial_duration: SETTINGS.beforeGlitchMs,
 
                     // Tags the trial with relevant data for later analysis
                     data: {
@@ -1068,27 +1192,15 @@
                 // Defines the glitch trial used when the participant responded and the item is assigned a glitch
                 const glitchTrial = {
                     type: jsPsychHtmlKeyboardResponse,
-
-                    stimulus: `
-        <div class="trial-container">
-            <div class="trial-header" style="visibility: hidden;">
-                CSELEKEDJEN!
-            </div>
-
-            <div class="glitch-image-wrapper">
-                <img src="${item.unsafe}" class="trial-image">
-                <img src="img/glitch.png" class="glitch-overlay">
-            </div>
-
-            <div class="trial-description" style="visibility: hidden;">
-                ${item.description}
-            </div>
-        </div>
-    `,
+                    // Shows the unsafe image with a glitch overlay, but only if the participant responded in the main trial
+                    stimulus: createImageHTML({
+                        image: item.unsafe,
+                        glitch: true
+                    }),
                     // No key responses are allowed during this trial
                     choices: "NO_KEYS",
                     // Shows the unsafe image with the glitch overlay for 2 seconds
-                    trial_duration: 2000,
+                    trial_duration: SETTINGS.glitchMs,
 
                     // Tags the trial with relevant data for later analysis
                     data: {
@@ -1101,23 +1213,13 @@
                 // Defines the trial that shows the secured image after the glitch
                 const securedAfterGlitch = {
                     type: jsPsychHtmlKeyboardResponse,
-
-                    stimulus: `
-        <div class="trial-container">
-            <div class="trial-header" style="visibility: hidden;">
-                CSELEKEDJEN!
-            </div>
-
-            <img src="${item.secured}" class="trial-image">
-
-            <div class="trial-description" style="visibility: hidden;">
-                ${item.description}
-            </div>
-        </div>
-    `,
+                    // Shows the secured image after the glitch, but only if the participant responded in the main trial
+                    stimulus: createImageHTML({
+                        image: item.secured
+                    }),
                     // No key responses are allowed during this trial
                     choices: "NO_KEYS",
-                    trial_duration: 2000,
+                    trial_duration: SETTINGS.afterGlitchMs,
 
                     data: {
                         task: "secured_after_glitch",
@@ -1150,21 +1252,12 @@
                 // Defines the secured-image feedback used after a responded, non-glitch action trial
                 const mainFeedback = {
                     type: jsPsychHtmlKeyboardResponse,
-                    stimulus: `
-            <div class="trial-container">
-                <div class="trial-header" style="visibility: hidden;">
-                    CSELEKEDJEN!
-                </div>
-
-                <img src="${item.secured}" class="trial-image">
-
-                <div class="trial-description" style="visibility: hidden;">
-                    ${item.description}
-                </div>
-            </div>
-        `,
+                    // Shows the secured image after the main trial, but only if the participant responded and the item is not assigned a glitch
+                    stimulus: createImageHTML({
+                        image: item.secured
+                    }),
                     choices: "NO_KEYS",
-                    trial_duration: 6000
+                    trial_duration: SETTINGS.feedbackMs,
                 };
 
                 // Defines a conditional timeline that only shows the main feedback if the participant responded in the main trial and the item is not assigned a glitch
@@ -1267,65 +1360,30 @@
                 }
             };
 
-            // Defines the confidence rating trial for the recognition response
-            const recognitionConfidenceTrial = {
-                type: jsPsychHtmlSliderResponse,
+            // Creates the confidence rating for the recognition response
+            const recognitionConfidenceTrial = createConfidenceTrial(
+                item,
+                "recognition_confidence"
+            );
 
-                stimulus: `
-            <div class="trial-container confidence-container">
-            <div class="trial-header">Mennyire biztos ebben?</div>
-
-            <img src="${item.unsafe}" class="trial-image">
-        </div>
-    `,
-
-                // Defines the properties of the confidence slider
-                min: 0,
-                max: 100,
-                slider_start: 50,
-                step: 1,
-
-                // Defines the labels for the confidence slider
-                labels: [
-                    "egyáltalán nem",
-                    "teljesen"
-                ],
-
-                // Requires the participant to move the slider before proceeding
-                require_movement: true,
-                button_label: "Tovább",
-
-                // Tags the trial with relevant data for later analysis
-                data: {
-                    task: "test",
-                    question: "recognition_confidence",
-                    item_id: item.id,
-                    memory_status: item.memory_status,
-                    learning_condition: item.condition ?? "not_presented",
-                    glitch_assigned: item.glitch ?? false
-                }
-            };
-
-            // Defines the source memory trial that asks participants to recall the condition under which they saw the item
+            // Defines the source-memory question
             const sourceTrial = {
                 type: jsPsychHtmlKeyboardResponse,
 
                 stimulus: `
         <div class="trial-container">
             <div class="trial-header">
-                Ha látta, akkor mi történt vele?
+                Ha látta, akkor mi történt vele? Hogyan válaszolt?
             </div>
 
             <img src="${item.unsafe}" class="trial-image">
-
+            
             <div class="test-response-row">
                 <div class="test-response-option">
-                    Ha <strong>CSELEKEDETT</strong>,<br>
-                    nyomja meg a <strong>0</strong> billentyűt!
-                </div>
-
+                    Ha <strong>ELKÉPZELTE</strong>,<br>nyomja meg a <strong>0</strong> billentyűt!
+                    </div>
                 <div class="test-response-option">
-                    Ha <strong>ELKÉPZELTE</strong>,<br>
+                    Ha <strong>CSELEKEDETT</strong>,<br>
                     nyomja meg az <strong>1</strong> billentyűt!
                 </div>
             </div>
@@ -1343,7 +1401,7 @@
                     glitch_assigned: item.glitch ?? false,
                     correct_response:
                         item.memory_status === "old"
-                            ? (item.condition === "action" ? "0" : "1")
+                            ? (item.condition === "action" ? "1" : "0")
                             : null
                 },
 
@@ -1355,39 +1413,11 @@
                 }
             };
 
-            const sourceConfidenceTrial = {
-                type: jsPsychHtmlSliderResponse,
-
-                stimulus: `
-        <div class="trial-container confidence-container">
-            <div class="trial-header">Mennyire biztos ebben?</div>
-
-            <img src="${item.unsafe}" class="trial-image">
-        </div>
-    `,
-
-                min: 0,
-                max: 100,
-                slider_start: 50,
-                step: 1,
-
-                labels: [
-                    "egyáltalán nem",
-                    "teljesen"
-                ],
-
-                require_movement: true,
-                button_label: "Tovább",
-
-                data: {
-                    task: "test",
-                    question: "source_confidence",
-                    item_id: item.id,
-                    memory_status: item.memory_status,
-                    learning_condition: item.condition ?? "not_presented",
-                    glitch_assigned: item.glitch ?? false
-                }
-            };
+            // Creates the confidence rating for the source-memory response
+            const sourceConfidenceTrial = createConfidenceTrial(
+                item,
+                "source_confidence"
+            );
 
             const sourceConditional = {
                 timeline: [sourceTrial, sourceConfidenceTrial],
@@ -1430,6 +1460,7 @@
 
         timeline.push(experimentEnd);
 
+        // START EXPERIMENT
         // Detects a JATOS run using its standard URL path
         const isJatos = window.location.pathname.includes("/publix/");
 
