@@ -1503,7 +1503,14 @@
     `
         };
 
-        timeline.push(experimentEnd);
+        // Exits fullscreen after the participant confirms the end of the task
+        const exitFullscreen = {
+            type: jsPsychFullscreen,
+            fullscreen_mode: false,
+            delay_after: 0
+        };
+
+        timeline.push(experimentEnd, exitFullscreen);
 
         // START EXPERIMENT
         // Detects a JATOS run using its standard URL path
