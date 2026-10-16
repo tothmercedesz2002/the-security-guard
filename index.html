@@ -109,7 +109,7 @@
             object-fit: contain;
         }
 
-        /* Styling for the trial header  shown above each trial image (e.g., "CSELEKEDJEN!", etc.) */
+        /* Styling for the trial header shown above each trial image (e.g., "CSELEKEDJEN!", etc.) */
         .trial-header {
             /* Sets the heading text size */
             font-size: 34px;
@@ -234,21 +234,30 @@
 
         /* Keeps a dedicated instruction row above learning and feedback images */
         .learning-image-screen {
+            /* Uses CSS Grid to create a two-row layout with the instruction row on top and the image row below */
             display: grid;
+            /* Defines the names of the two rows for easier placement of elements */
             grid-template-areas:
                 "instruction"
                 "image";
+            /* Sets the height of the instruction row to 1.5 times the font size and the image row to take up the remaining space */
             grid-template-rows: 1.5em auto;
+            /* Centers the content of each row horizontally */
             gap: 20px;
+            /* Centers the content of each row vertically */
             justify-items: center;
+            /* Makes the container use the full available width */
             width: 100%;
+            /* Sets the text size for the instruction row */
             font-size: 34px;
         }
 
+        /* Places the trial header in the instruction row of the learning-image-screen layout */
         .learning-image-screen>.trial-header {
             grid-area: instruction;
         }
 
+        /* Places the trial image or glitch wrapper in the image row of the learning-image-screen layout */
         .learning-image-screen>.trial-image,
         .learning-image-screen>.glitch-image-wrapper {
             grid-area: image;
@@ -268,50 +277,68 @@
         // SETTINGS
         // EXPERIMENTAL PROPORTIONS AND DURATIONS (ms)
         const SETTINGS = {
-            // The learning-item count must be even for the 50/50 condition split
+            // The delay before the fullscreen prompt appears
+            fullscreenDelayMs: 1000,
+
+            // 80% (40 items) of the main stimuli are used for learning, and 20% (10 items) are held out for testing
             learningProportion: 0.8,
+            // 25% (5 items) of the action learning items are randomly selected to be glitched
             glitchProportion: 0.25,
 
-            descriptionMs: 12000,
-            imaginationMs: 12000,
+            // The durations of the different trial types in milliseconds
+            // Description and imagination trials are 8 seconds long
+            // Action trials don't have a fixed duration, as they wait for the participant to press a key
+            // Feedback trials are 6 seconds long
+            descriptionMs: 8000,
+            imaginationMs: 8000,
             feedbackMs: 6000,
 
+            // The secured image is shown for 2 seconds before the glitch overlay appears, then 2 seconds of glitch, then 2 seconds of secured image again (total: 6 seconds)
             beforeGlitchMs: 2000,
             glitchMs: 2000,
-            afterGlitchMs: 2000,
-
-            fullscreenDelayMs: 1000
+            afterGlitchMs: 2000
         };
 
         // SCREEN BUILDERS
-        // Creates a description-only screen that advances automatically after 12 seconds
+        // Creates a description-only screen that advances automatically
         function createDescriptionTrial(description, data) {
             return {
                 type: jsPsychHtmlKeyboardResponse,
 
+                // Displays the description text in a dedicated container
                 stimulus: `
-            <div class="trial-container">
-                <div class="trial-description">${description}</div>
-            </div>
-        `,
+                <div class="trial-container">
+                    <div class="trial-description">${description}</div>
+                </div>
+                `,
 
+                // No keypresses are required, and the trial ends automatically after the specified duration
                 choices: "NO_KEYS",
                 trial_duration: SETTINGS.descriptionMs,
+                // Preserves the existing analysis variables and question labels
                 data: data
             };
         }
 
-        // Builds a learning or feedback screen without hidden placeholder text
+        // Builds a screen that shows an image with an optional instruction and glitch overlay 
         function createImageHTML({
+            // The image to be displayed (unsafe or secured)
             image,
+            // Instruction text to be displayed above the image
             instruction = "",
+            // Whether to show the glitch overlay on top of the image
             glitch = false
         }) {
+            // Creates the HTML for the instruction row if an instruction is provided
             const instructionHTML = instruction
+                // If an instruction is provided, create the HTML for the instruction row
                 ? `<div class="trial-header">${instruction}</div>`
+                // If no instruction is provided, return an empty string so that the instruction row is not created
                 : "";
 
+            // Creates the HTML for the image row, with or without the glitch overlay
             const imageHTML = glitch
+                // If glitch is true, create the HTML for the glitch overlay on top of the image
                 ? `
             <div class="glitch-image-wrapper">
                 <img src="${image}" class="trial-image">
@@ -329,10 +356,11 @@
         }
 
         // Creates a confidence-rating trial for the specified item and question
-        function createConfidenceTrial(item, question) {
+        function createConfidenceTrial(item, questionType) {
             return {
                 type: jsPsychHtmlSliderResponse,
 
+                // Displays the unsafe image and asks the participant to rate their confidence in their answer
                 stimulus: `
             <div class="trial-container confidence-container">
                 <div class="trial-header">Mennyire biztos ebben?</div>
@@ -353,53 +381,105 @@
 
                 // Preserves the existing analysis variables and question labels
                 data: {
-                    task: "test",
-                    question: question,
+                    task_part: "test",
+                    question_type: questionType,
                     item_id: item.id,
-                    memory_status: item.memory_status,
-                    learning_condition: item.condition ?? "not_presented",
-                    glitch_assigned: item.glitch ?? false
+                    item_status: item.item_status,
+                    assigned_condition: item.assigned_condition ?? "not_presented",
+                    glitch_assigned: item.glitch_assigned ?? false
                 }
             };
+        }
+
+        // DATA RECORDING
+        const EXPERIMENT_VERSION = "TSG_2026-10-16_v2";
+
+        const EXPORT_COLUMNS = [
+            "participant_id", "experiment_version", "session_start_utc",
+            "elapsed_time_ms", "task_part", "question_type", "item_id",
+            "assigned_condition", "item_status", "response_key",
+            "confidence_rating", "response_time_ms", "expected_key",
+            "response_correct", "recognition_outcome",
+            "imagination_keypress", "glitch_assigned", "glitch_presented"
+        ];
+
+        // Finalizes each trial's data before the next trial is selected.
+        function recordTrialData(data) {
+            const isConfidence = [
+                "recognition_confidence",
+                "source_confidence"
+            ].includes(data.question_type);
+
+            // These three fields are supplied by jsPsych, not named by us.
+            const pluginResponse = data.response;
+
+            data.response_key = isConfidence
+                ? ""
+                : (pluginResponse === " " ? "Space" : (pluginResponse ?? ""));
+
+            data.confidence_rating = isConfidence ? (pluginResponse ?? "") : "";
+            data.response_time_ms = data.rt ?? "";
+            data.elapsed_time_ms = data.time_elapsed ?? "";
+
+            data.response_correct = "";
+            data.recognition_outcome = "";
+            data.imagination_keypress = "";
+
+            const isLearning = ["practice", "learning"].includes(data.task_part);
+
+            if (isLearning && data.assigned_condition === "imagination") {
+                data.imagination_keypress = data.response_key !== "";
+            }
+
+            const isMemoryQuestion =
+                data.task_part === "test" &&
+                ["recognition", "source"].includes(data.question_type);
+
+            // No correct answer is defined for a lure's source question.
+            if (
+                isMemoryQuestion &&
+                ["0", "1"].includes(data.response_key) &&
+                ["0", "1"].includes(data.expected_key)
+            ) {
+                data.response_correct = data.response_key === data.expected_key;
+            }
+
+            if (data.task_part === "test" && data.question_type === "recognition") {
+                if (data.item_status === "old") {
+                    if (data.response_key === "1") data.recognition_outcome = "hit";
+                    if (data.response_key === "0") data.recognition_outcome = "miss";
+                } else if (data.item_status === "lure") {
+                    if (data.response_key === "1") data.recognition_outcome = "false_alarm";
+                    if (data.response_key === "0") data.recognition_outcome = "correct_rejection";
+                }
+            }
+
+            // Use blank cells for missing/not-applicable fields; keep 0 and false.
+            EXPORT_COLUMNS.forEach(column => {
+                if (data[column] === undefined || data[column] === null) {
+                    data[column] = "";
+                }
+            });
+
+            // All later experiment logic uses the explicit names above.
+            delete data.response;
+            delete data.rt;
+            delete data.time_elapsed;
         }
 
         // INITIALIZATION AND DATA SAVING
         // Initializes jsPsych, which will control the experiment and store its data
         const jsPsych = initJsPsych({
+            // Runs this function automatically after each trial finishes
+            on_trial_finish: recordTrialData,
             // Runs this function automatically after the entire experiment has finished
             on_finish: function () {
                 // Gets all recorded jsPsych data and starts creating the cleaned dataset for analysis
                 const analysisData = jsPsych.data.get()
-                    // Keeps only rows belonging to the relevant experimental tasks (for trial level analysis)
-                    .filterCustom(function (row) {
-                        return [
-                            "practice",
-                            "main",
-                            "glitch",
-                            "test"
-                        ].includes(row.task);
-                    })
-                    // Keeps only the variables needed for analysis and sets their order in the CSV
-                    .filterColumns([
-                        "participant_id",
-                        "session_start",
-                        "time_elapsed",
-                        "task",
-                        "question",
-                        "item_id",
-                        "learning_condition",
-                        "memory_status",
-                        "response",
-                        "rt",
-                        "correct_response",
-                        "correct",
-                        "missed_response",
-                        "commission_error", // when participant responds during imagination trials
-                        "false_alarm",      // when participant responds during lure trials
-                        "miss",
-                        "glitch_shown",
-                        "glitch_assigned"
-                    ]);
+                    .filterCustom(row =>
+                        ["practice", "learning", "glitch", "test"].includes(row.task_part)
+                    )
+                    .filterColumns(EXPORT_COLUMNS);
 
                 // Creates a filename-safe version of the participant ID
                 const safeParticipantId = String(participantId)
@@ -458,10 +538,9 @@
 
         // Adds the same participant and session information to every trial's data row
         jsPsych.data.addProperties({
-            // Stores the participant ID in the participant_id column
             participant_id: participantId,
-            // Records the session start time in standardized UTC format
-            session_start: new Date().toISOString()
+            session_start_utc: new Date().toISOString(),
+            experiment_version: EXPERIMENT_VERSION
         });
 
         // STIMULUS DATA
@@ -510,7 +589,7 @@
             {
                 id: "car",
                 unsafe: "img/car_unsafe.png",
-                description: "A céges autó kereke mögé néha elbújik egy macska.<br>Ha nem ellenőrzi le, hogy ott van-e a macska, mielőtt elindul, megsebesítheti.",
+                description: "A céges autó kereke mögé néha elbújik egy macska.<br>Ha nem ellenőrzi le, hogy ott van-e a macska, mielőtt elindul, sérülést okozhat neki.",
                 secured: "img/car_secured.png"
             },
             // 7
@@ -622,7 +701,7 @@
             {
                 id: "asymmetry",
                 unsafe: "img/asymmetry_unsafe.png",
-                description: "Az asztalon a tűzőgép és a tolltartó egymással párhuzamosan áll.<br>Ha nem igazítja meg őket azonnal, a szerettei holnap hajnalban meghalnak.",
+                description: "Az asztalon a tűzőgép ferdén áll.<br>Ha nem igazítja egyenesbe azonnal, a szerettei holnap hajnalban meghalnak.",
                 secured: "img/asymmetry_secured.png"
             },
             // 23
@@ -692,7 +771,7 @@
             {
                 id: "food",
                 unsafe: "img/food_unsafe.png",
-                description: "Valaki kint felejtette a pulton a mézes krémest.<br>Ha nem teszi hűtőbe, beköpik a legyek, és megromlik, súlyos ételmérgezés lehet a vége. ",
+                description: "Valaki kint felejtette a pulton a mézes krémest.<br>Ha nem teszi hűtőbe, megromlik és beszennyezik a rászálló legyek, és súlyos ételmérgezés lehet a vége. ",
                 secured: "img/food_secured.png"
             },
             // 33
@@ -861,13 +940,13 @@
             // Copies all existing properties of the current stimulus
             ...item,
             // Adds the condition found at the same position in learningConditions
-            condition: learningConditions[index]
+            assigned_condition: learningConditions[index]
         }));
 
         // Creates a new list containing only the learning stimuli assigned to the action condition
         const actionStimuli = learningStimuliWithConditions
             // Keeps an item only when its condition is exactly "action"
-            .filter(item => item.condition === "action");
+            .filter(item => item.assigned_condition === "action");
 
         // Calculates how many action stimuli should receive a glitch
         // Rounds the result to the nearest whole number
@@ -886,7 +965,7 @@
         // Adds a true-or-false glitch property to every learning stimulus
         learningStimuliWithConditions.forEach(item => {
             // Sets glitch to true if the item's ID was selected, otherwise sets it to false
-            item.glitch = glitchItemIds.includes(item.id);
+            item.glitch_assigned = glitchItemIds.includes(item.id);
         });
 
         // Combines old and lure stimuli, then randomizes their order for the test phase
@@ -894,13 +973,13 @@
             // Copies all learning stimuli and labels them as previously presented ("old")
             ...learningStimuliWithConditions.map(item => ({
                 ...item,
-                memory_status: "old"
+                item_status: "old"
             })),
 
             // Copies all lure stimuli and labels them as not previously presented ("lure")
             ...lureStimuli.map(item => ({
                 ...item,
-                memory_status: "lure"
+                item_status: "lure"
             }))
         ]);
 
@@ -1024,7 +1103,7 @@
         // Creates the description screen used before both practice images
         const practiceDescriptionTrial = createDescriptionTrial(
             practiceStimulus.description,
-            { task: "practice_description" }
+            { task_part: "practice_description" }
         );
 
         // Practice trial 1 - action
@@ -1038,12 +1117,7 @@
             // Only responds to the SPACE bar
             choices: [' '],
             // Tags the trial as a practice trial in the action condition
-            data: { task: 'practice', learning_condition: 'action' },
-            // Records whether the participant missed the response
-            on_finish: function (data) {
-                // We can explicitly tag an omission error for easier data analysis later
-                data.missed_response = data.response === null;
-            }
+            data: { task_part: 'practice', assigned_condition: 'action' }
         };
 
         // Feedback trial for the practice action trial
@@ -1067,7 +1141,7 @@
                 // Get the data from the immediately preceding trial
                 let data = jsPsych.data.get().last(1).values()[0];
                 // If response is NOT null, return true to show feedback. Otherwise, skip.
-                return data.response !== null;
+                return data.response_key === "Space";
             }
         };
 
@@ -1093,11 +1167,7 @@
             // 12 seconds maximal display
             trial_duration: SETTINGS.imaginationMs,
             // Tags the trial as a practice trial in the imagination condition
-            data: { task: 'practice', learning_condition: 'imagination' },
-            on_finish: function (data) {
-                // We explicitly tag a commission error if a response was recorded
-                data.commission_error = data.response !== null;
-            }
+            data: { task_part: 'practice', assigned_condition: 'imagination' }
         };
 
         // Shows the description, then the imagination image
@@ -1123,13 +1193,13 @@
         // Loops through every learning stimulus with its assigned condition
         learningStimuliWithConditions.forEach(item => {
             // Determines the instruction text based on the condition of the current item
-            const trialInstruction = item.condition === "action"
+            const trialInstruction = item.assigned_condition === "action"
                 ? "CSELEKEDJEN!"
                 : "KÉPZELJE EL!";
 
             // Creates the description screen for the current learning item
             const descriptionTrial = createDescriptionTrial(item.description, {
-                task: "description",
+                task_part: "description",
                 item_id: item.id
             });
 
@@ -1141,30 +1211,22 @@
                     instruction: trialInstruction
                 }),
                 // Sets the allowed key responses based on the condition
-                choices: item.condition === "action"
+                choices: item.assigned_condition === "action"
                     ? [" "]
                     : "ALL_KEYS",
 
                 // Determines whether the trial ends on response based on the condition
-                response_ends_trial: item.condition === "action"
+                response_ends_trial: item.assigned_condition === "action"
                     ? true
                     : false,
                 // Sets the trial duration based on the condition (12 seconds for imagination, no limit for action)
-                trial_duration: item.condition === "action" ? null : SETTINGS.imaginationMs,
+                trial_duration: item.assigned_condition === "action" ? null : SETTINGS.imaginationMs,
                 // Tags the trial with relevant data for later analysis
                 data: {
-                    task: "main",
-                    learning_condition: item.condition,
+                    task_part: "learning",
+                    assigned_condition: item.assigned_condition,
                     item_id: item.id,
-                    glitch_assigned: item.glitch
-                },
-                // Records whether the participant missed a response or made a commission error
-                on_finish: function (data) {
-                    if (item.condition === "action") {
-                        data.missed_response = data.response === null;
-                    } else {
-                        data.commission_error = data.response !== null;
-                    }
+                    glitch_assigned: item.glitch_assigned
                 }
             };
 
@@ -1172,7 +1234,7 @@
             timeline.push(descriptionTrial, mainTrial);
 
             // If the item is in the action condition, we may need to add glitch trials
-            if (item.condition === "action") {
+            if (item.assigned_condition === "action") {
                 const securedBeforeGlitch = {
                     type: jsPsychHtmlKeyboardResponse,
                     // Shows the secured image before the glitch, but only if the participant responded in the main trial
@@ -1185,7 +1247,7 @@
 
                     // Tags the trial with relevant data for later analysis
                     data: {
-                        task: "secured_before_glitch",
+                        task_part: "secured_before_glitch",
                         item_id: item.id
                     }
                 };
@@ -1204,9 +1266,9 @@
 
                     // Tags the trial with relevant data for later analysis
                     data: {
-                        task: "glitch",
+                        task_part: "glitch",
                         item_id: item.id,
-                        glitch_shown: true
+                        glitch_presented: true
                     }
                 };
 
@@ -1222,7 +1284,7 @@
                     trial_duration: SETTINGS.afterGlitchMs,
 
                     data: {
-                        task: "secured_after_glitch",
+                        task_part: "secured_after_glitch",
                         item_id: item.id
                     }
                 };
@@ -1239,13 +1301,13 @@
                     conditional_function: function () {
                         const mainTrialData = jsPsych.data.get()
                             .filter({
-                                task: "main",
+                                task_part: "learning",
                                 item_id: item.id
                             })
                             .last(1)
                             .values()[0];
 
-                        return item.glitch && mainTrialData.response !== null;
+                        return item.glitch_assigned && mainTrialData.response_key === "Space";
                     }
                 };
 
@@ -1267,13 +1329,13 @@
                     conditional_function: function () {
                         const mainTrialData = jsPsych.data.get()
                             .filter({
-                                task: "main",
+                                task_part: "learning",
                                 item_id: item.id
                             })
                             .last(1)
                             .values()[0];
 
-                        return !item.glitch && mainTrialData.response !== null;
+                        return !item.glitch_assigned && mainTrialData.response_key === "Space";
                     }
                 };
 
@@ -1340,23 +1402,13 @@
                 choices: ["0", "1"],
                 // Tags the trial with relevant data for later analysis
                 data: {
-                    task: "test",
-                    question: "recognition",
+                    task_part: "test",
+                    question_type: "recognition",
                     item_id: item.id,
-                    memory_status: item.memory_status,
-                    learning_condition: item.condition ?? "not_presented",
-                    glitch_assigned: item.glitch ?? false,
-                    correct_response: item.memory_status === "old" ? "1" : "0",
-                },
-                // Determines whether the participant's response was correct, a false alarm, or a miss
-                on_finish: function (data) {
-                    data.correct = data.response === data.correct_response;
-
-                    data.false_alarm =
-                        data.memory_status === "lure" && data.response === "1";
-
-                    data.miss =
-                        data.memory_status === "old" && data.response === "0";
+                    item_status: item.item_status,
+                    assigned_condition: item.assigned_condition ?? "not_presented",
+                    glitch_assigned: item.glitch_assigned ?? false,
+                    expected_key: item.item_status === "old" ? "1" : "0",
                 }
             };
 
@@ -1393,23 +1445,16 @@
                 choices: ["0", "1"],
 
                 data: {
-                    task: "test",
-                    question: "source",
+                    task_part: "test",
+                    question_type: "source",
                     item_id: item.id,
-                    memory_status: item.memory_status,
-                    learning_condition: item.condition ?? "not_presented",
-                    glitch_assigned: item.glitch ?? false,
-                    correct_response:
-                        item.memory_status === "old"
-                            ? (item.condition === "action" ? "1" : "0")
+                    item_status: item.item_status,
+                    assigned_condition: item.assigned_condition ?? "not_presented",
+                    glitch_assigned: item.glitch_assigned ?? false,
+                    expected_key:
+                        item.item_status === "old"
+                            ? (item.assigned_condition === "action" ? "1" : "0")
                             : null
-                },
-
-                on_finish: function (data) {
-                    data.correct =
-                        data.correct_response === null
-                            ? null
-                            : data.response === data.correct_response;
                 }
             };
 
@@ -1425,14 +1470,14 @@
                 conditional_function: function () {
                     const recognitionData = jsPsych.data.get()
                         .filter({
-                            task: "test",
-                            question: "recognition",
+                            task_part: "test",
+                            question_type: "recognition",
                             item_id: item.id
                         })
                         .last(1)
                         .values()[0];
 
-                    return recognitionData.response === "1";
+                    return recognitionData.response_key === "1";
                 }
             };
 
