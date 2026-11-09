@@ -4,32 +4,41 @@ The Security Guard is a novel experimental paradigm designed to investigate **me
 
 Participants take the role of a security guard whose task is to secure an area before going home.
 
+## Pilot versions and randomization
+
+At the start of each run, the task randomly selects one of three versions with equal probability.
+
+| Version | Test items | Learned items | Action | Imagination | Lures | Glitch-action |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: |
+| `TSG_50` | 50 | 40 | 20 | 20 | 10 | 5 |
+| `TSG_60` | 60 | 48 | 24 | 24 | 12 | 6 |
+| `TSG_70` | 70 | 56 | 28 | 28 | 14 | 7 |
+
+Every version samples items without replacement from the same **70-scenario pool**. Of the selected items, 80% are presented during learning and 20% are reserved as unseen lures. Learned items are randomly divided equally between action and imagination. A random 25% of action items receive a glitch; these are part of the action count, not additional items.
+
+No scenario is permanently assigned to a version or condition. The test items are shuffled again before testing.
+
 ## Learning phase
 
-Participants are presented with **40 potentially unsafe scenarios**, such as a kettle that has been left plugged in.
+Each scenario begins with a description displayed for 8 seconds, followed by an image of the unsafe situation.
 
-- In the **action condition** (20 scenarios), participants press the spacebar to secure the object.
-- In **5 action trials** (25% of the action trials), a brief visual glitch disrupts the confirmation that the object has been secured.
-- In the **imagination condition** (20 scenarios), participants do not press a key but vividly imagine securing the object.
+- **Action:** Participants press the spacebar to secure the situation. There is no response deadline. A secured image then confirms the action; on glitch trials, a brief visual glitch interrupts this confirmation.
+- **Imagination:** Participants vividly imagine securing the situation without pressing a key. The unsafe image remains visible for 8 seconds.
 
 ## Testing phase
 
-Participants attend a follow-up meeting with their supervisor and answer questions about the previous night's work.
+Participants answer questions about the previous night's work. The test includes all items presented during learning and the reserved lures.
 
-The test contains all **40 previously presented items** and **10 novel lure items**. For each item, participants answer:
+1. **Recognition:** Participants decide whether they saw the image during learning.
+2. **Source monitoring:** After an “old” response, participants indicate whether they acted or imagined acting.
 
-1. **Recognition question:** Did you see this object? (Yes/No)
-2. **Source-monitoring question:** If so, did you act on it or imagine acting on it?
+Participants rate their confidence from 0 to 100 after each recognition response and each source response that is collected.
 
-After each response, participants rate their **confidence** on a scale from 0 to 100.
+## Data output
 
-## Randomization
+The CSV stores the selected version in the `tsg_length_condition` column on every exported row. The `assigned_condition` column separately records the action or imagination assignment for individual learned items.
 
-The task contains **50 scenarios** in total. For each participant, stimuli are randomly assigned while maintaining the following fixed allocation:
-
-- 40 learning items and 10 lure items
-- 20 action items and 20 imagination items
-- 5 glitch trials and 15 non-glitch trials among the action items
+In demo mode, the task downloads a CSV locally. When run through JATOS, it submits the CSV data to the study server instead.
 
 ## Files
 
