@@ -277,12 +277,16 @@
         // SETTINGS
         // EXPERIMENTAL PROPORTIONS AND DURATIONS (ms)
         const SETTINGS = {
+
             // The delay before the fullscreen prompt appears
             fullscreenDelayMs: 1000,
 
-            // 80% (40 items) of the main stimuli are used for learning, and 20% (10 items) are held out for testing
+            // Possible numbers of test items in the pilot study (50, 60, or 70 items)
+            testItemCounts: [50, 60, 70],
+
+            // 80% of the main stimuli are used for learning phase, and 20% are held out for testing phase
             learningProportion: 0.8,
-            // 25% (5 items) of the action learning items are randomly selected to be glitched
+            // 25% of the action learning items are randomly selected to be glitched
             glitchProportion: 0.25,
 
             // The durations of the different trial types in milliseconds
@@ -392,14 +396,13 @@
         }
 
         // DATA RECORDING
-        const EXPERIMENT_VERSION = "TSG_2026-10-16_v2";
+        const EXPERIMENT_VERSION = "TSG_2026-11-09_v1";
 
         const EXPORT_COLUMNS = [
-            "participant_id", "experiment_version", "session_start_utc",
-            "elapsed_time_ms", "task_part", "question_type", "item_id",
-            "assigned_condition", "item_status", "response_key",
-            "confidence_rating", "response_time_ms", "expected_key",
-            "response_correct", "recognition_outcome",
+            "participant_id", "experiment_version", "tsg_length_condition", "session_start_utc",
+            "elapsed_time_ms", "task_part", "question_type", "item_id", "assigned_condition",
+            "item_status", "response_key", "confidence_rating", "response_time_ms",
+            "expected_key", "response_correct", "recognition_outcome",
             "imagination_keypress", "glitch_assigned", "glitch_presented"
         ];
 
@@ -899,6 +902,146 @@
                 unsafe: "img/suicide_unsafe.png",
                 description: "Egy levél altató maradt az asztalon.<br>Ha nem dobja ki őket azonnal, egy pillanatnyi elmezavarában az összeset beveszi, és szándéka ellenére öngyilkosságot követ el.",
                 secured: "img/suicide_secured.png"
+            },
+            // 51
+            {
+                id: "diamond",
+                unsafe: "img/diamond_unsafe.png",
+                description: "A folyosón talál egy gyémántfülbevalót a földön.<br>Ha nem helyezi biztonságos helyre, lehet, hogy valaki az elhunyt édesanyja örökségét veszíti el.",
+                secured: "img/diamond_secured.png"
+            },
+            // 52
+            {
+                id: "mold",
+                unsafe: "img/mold_unsafe.png",
+                description: "A kávéfőzőben valaki benne hagyta a lefőzött kávét, és az bepenészedett.<br>Ha nem önti ki, és valaki megissza, a rákkeltő mikotoxinok miatt megbetegedhet.",
+                secured: "img/mold_secured.png"
+            },
+            // 53
+            {
+                id: "keys",
+                unsafe: "img/keys_unsafe.png",
+                description: "A kulcstartón 13 szoba kulcsa nem sorrendben van felakasztva.<br>Ha nem javítja ki, hazafelé gyilkosság áldozata lesz.",
+                secured: "img/keys_secured.png"
+            },
+            // 54
+            {
+                id: "bank",
+                unsafe: "img/bank_unsafe.png",
+                description: "A számlakivonatok nem sorrendben vannak lefűzve.<br>Ha nem rendezi sorba, a pénzügyes hibát vét, és emiatt kirúgják.",
+                secured: "img/bank_secured.png"
+            },
+            // 55
+            {
+                id: "horseshoe",
+                unsafe: "img/horseshoe_unsafe.png",
+                description: "A főnök ajtaja fölött a patkó megfordult, nem U-alakban van.<br>Ha nem fordítja felfelé, elfolyik a szerencse.",
+                secured: "img/horseshoe_secured.png"
+            },
+            // 56
+            {
+                id: "cocaine",
+                unsafe: "img/cocaine_unsafe.png",
+                description: "Az asztalára furcsa fehér por került.<br>Ha nem takarítja fel azonnal, kokainnak fogják hinni, és megbüntetik drogbirtoklásért.",
+                secured: "img/cocaine_secured.png"
+            },
+            // 57
+            {
+                id: "napkin",
+                unsafe: "img/napkin_unsafe.png",
+                description: "A titkárnő értékes, 30 éves szalvétagyűjteménye egy papírdobozban a földön van.<br>Ha nem teszi a szekrénybe, a takarító szemétnek nézheti és kidobhatja.",
+                secured: "img/napkin_secured.png"
+            },
+            // 58
+            {
+                id: "bottlecap",
+                unsafe: "img/bottlecap_unsafe.png",
+                description: "Az irodában kupakot gyűjtenek rászoruló árva gyerekeknek.<br>Ha elfelejti bedobni a kupakot a vizespalackjáról, mindenki szívtelen, gonosz embernek fogja Önt gondolni.",
+                secured: "img/bottlecap_secured.png"
+            },
+            // 59
+            {
+                id: "gum",
+                unsafe: "img/gum_unsafe.png",
+                description: "Az asztal aljára valaki odaragasztotta a rágógumiját.<br>Ha nem távolítja el, és valaki belenyúl, elkaphat valamilyen fertőzést.",
+                secured: "img/gum_secured.png"
+            },
+            // 60
+            {
+                id: "curtains",
+                unsafe: "img/curtains_unsafe.png",
+                description: "A női öltözőnél az egyik szalagfüggöny beakadt, ezért nem lehet elhúzni.<br>Ha nem javítja meg, akkor be lehet majd látni, és valaki kukkolhatja a nőket.",
+                secured: "img/curtains_secured.png"
+            },
+            // 61
+            {
+                id: "lamp",
+                unsafe: "img/lamp_unsafe.png",
+                description: "A mélygarázsban ki van égve a lámpában az égő.<br>Ha nem cseréli ki, valakit megerőszakolhatnak a sötétben.",
+                secured: "img/lamp_secured.png"
+            },
+            // 62
+            {
+                id: "carbonmonoxide",
+                unsafe: "img/carbonmonoxide_unsafe.png",
+                description: "A kazánházban lemerült az elem a szénmonoxid-érzékelőben.<br>Ha nem tesz bele újat, másnap az ott dolgozók meghalhatnak.",
+                secured: "img/carbonmonoxide_secured.png"
+            },
+            // 63
+            {
+                id: "closet",
+                unsafe: "img/closet_unsafe.png",
+                description: "A szekrény üveg tolóajtaja kiugrott a sínből.<br>Ha nem teszi vissza a helyére, valakire rá fog esni és súlyos sérülést okoz.",
+                secured: "img/closet_secured.png"
+            },
+            // 64
+            {
+                id: "mouse",
+                unsafe: "img/mouse_unsafe.png",
+                description: "A pincében élvefogó egércsapda van.<br>Ha nem nézi meg, hogy van-e benne egér, a kisállat reggelre kínok között elpusztul.",
+                secured: "img/mouse_secured.png"
+            },
+            // 65
+            {
+                id: "gun",
+                unsafe: "img/gun_unsafe.png",
+                description: "Önnek biztonsági őrként van fegyvere.<br>Ha nem teszi vissza a fegyverszekrénybe, valaki reggel megtalálhatja és munkahelyi lövöldözésbe kezdhet.",
+                secured: "img/gun_secured.png"
+            },
+            // 66
+            {
+                id: "cockroach",
+                unsafe: "img/cockroach_unsafe.png",
+                description: "Látott egy csótányt a kukánál.<br>Ha nem teszi ki azonnal a rovarirtót, akkor nagyon gyorsan elszaporodhatnak, és akár vérhasjárvány is lehet a vége.",
+                secured: "img/cockroach_secured.png"
+            },
+            // 67
+            {
+                id: "ladder",
+                unsafe: "img/ladder_unsafe.png",
+                description: "A szűk folyosón falnak döntve maradt a létra.<br>Ha nem teszi el onnan és valaki átmegy alatta, akkor magához vonzza az erőszakos halált.",
+                secured: "img/ladder_secured.png"
+            },
+            // 68
+            {
+                id: "rosemary",
+                unsafe: "img/rosemary_unsafe.png",
+                description: "Az iroda szerencsehozó rozmaringja halálán van, át kellene ültetni.<br>Ha nem teszi meg, balszerencse éri a céget.",
+                secured: "img/rosemary_secured.png"
+            },
+            // 69
+            {
+                id: "shredder",
+                unsafe: "img/shredder_unsafe.png",
+                description: "Az iratmegsemmisítő bedugva maradt standby módban.<br>Ha nem áramtalanítja azonnal, a takarító haja beakadhat és a gép letépi a fejbőrét.",
+                secured: "img/shredder_secured.png"
+            },
+            // 70
+            {
+                id: "extinguisher",
+                unsafe: "img/extinguisher_unsafe.png",
+                description: "A folyosói poroltó elérte a maximális 20 éves élettartamot.<br>Ha nem selejtezi le, egy esetleges tűznél nem fog működni, és a kollégái élve fognak elégni.",
+                secured: "img/extinguisher_secured.png"
             }
         ];
 
@@ -910,19 +1053,28 @@
         };
 
         // RANDOMIZATION
-        // Creates a randomly shuffled copy of the complete stimulus list for the current participant
-        const shuffledStimuli = jsPsych.randomization.shuffle([...mainStimuli]);
-
-        // Sets how many stimuli will appear during the learning phase (all remaining stimuli will become lures in the test phase) - 20% should be lures, so 80% of the stimuli are used for learning
-        const numberOfLearningItems = Math.round(
-            mainStimuli.length * SETTINGS.learningProportion
+        // Draw one task length for the entire run.
+        const [testItemCount] = jsPsych.randomization.sampleWithoutReplacement(
+            SETTINGS.testItemCounts,
+            1
         );
 
-        // Selects the required number of stimuli from the randomized list for learning
-        const learningStimuli = shuffledStimuli.slice(0, numberOfLearningItems);
+        // Sample this run's test items from the full stimulus pool.
+        const shuffledStimuli = jsPsych.randomization
+            .shuffle([...mainStimuli])
+            .slice(0, testItemCount);
 
-        // Selects all remaining stimuli as lures
+        const numberOfLearningItems = Math.round(
+            shuffledStimuli.length * SETTINGS.learningProportion
+        );
+
+        const learningStimuli = shuffledStimuli.slice(0, numberOfLearningItems);
         const lureStimuli = shuffledStimuli.slice(numberOfLearningItems);
+
+        // Store the task-length condition in every trial row.
+        jsPsych.data.addProperties({
+            tsg_length_condition: `TSG_${testItemCount}`
+        });
 
         // Splits the learning stimuli equally between action and imagination
         const halfOfLearningItems = numberOfLearningItems / 2;
